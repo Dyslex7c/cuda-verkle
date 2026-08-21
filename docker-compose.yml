@@ -1,0 +1,14 @@
+version: '3.8'
+services:
+  cuda-verkle:
+    build: .
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - ./test_vectors:/workspace/test_vectors
+    command: bash

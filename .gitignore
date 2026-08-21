@@ -1,0 +1,40 @@
+# CMake and native build outputs
+/build/
+/cmake-build-*/
+/CMakeCache.txt
+/CMakeFiles/
+/CTestTestfile.cmake
+/Testing/
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Locally compiled convenience binaries
+/bench
+/bench_msm
+/test_field
+/test_curve
+/test_msm
+/test_commitment
+/test_tree
+
+# Rust build output
+**/target/
+
+# Generated test vectors; keep their README in version control
+/test_vectors/*.json
+
+# Local editor, OS, and environment files
+.DS_Store
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+.env
+.env.*
+!.env.example

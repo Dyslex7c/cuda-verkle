@@ -1,0 +1,20 @@
+[package]
+name = "verkle-test-vectors"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+banderwagon = { git = "https://github.com/crate-crypto/rust-verkle", branch = "master" }
+ipa-multipoint = { git = "https://github.com/crate-crypto/rust-verkle", branch = "master" }
+verkle-trie = { git = "https://github.com/crate-crypto/rust-verkle", branch = "master" }
+verkle-spec = { git = "https://github.com/crate-crypto/rust-verkle", branch = "master" }
+
+ark-ed-on-bls12-381-bandersnatch = "0.4"
+ark-ff = "0.4"
+ark-ec = "0.4"
+ark-serialize = "0.4"
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rand = "0.8"
+hex = "0.4"
