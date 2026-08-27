@@ -7,7 +7,6 @@
 #include "../src/curve/banderwagon.cuh"
 #include "../src/constants/crs_points.cuh"
 #include "../src/msm/msm_kernel.cuh"
-#include "../src/msm/msm_kernel.cu"
 #include "../src/tree/verkle_tree.cuh"
 
 static int tests_passed = 0;
@@ -19,8 +18,6 @@ static int tests_failed = 0;
 } while(0)
 
 void test_empty_tree() {
-    printf("\n--- test_empty_tree ---\n");
-
     VerkleTree tree;
     tree.init(1);
     tree.recompute_full();
@@ -39,8 +36,6 @@ void test_empty_tree() {
 }
 
 void test_tree_matches_msm() {
-    printf("\n--- test_tree_matches_msm ---\n");
-
     VerkleTree tree;
     tree.init(1);
 
@@ -61,8 +56,6 @@ void test_tree_matches_msm() {
 }
 
 void test_incremental_single_update() {
-    printf("\n--- test_incremental_single_update ---\n");
-
     // Build tree with initial values
     VerkleTree tree_inc, tree_full;
     tree_inc.init(1);
@@ -89,8 +82,6 @@ void test_incremental_single_update() {
 }
 
 void test_incremental_multi_update() {
-    printf("\n--- test_incremental_multi_update ---\n");
-
     VerkleTree tree_inc, tree_full;
     tree_inc.init(1);
     tree_full.init(1);
@@ -120,8 +111,6 @@ void test_incremental_multi_update() {
 }
 
 void test_incremental_all_leaves() {
-    printf("\n--- test_incremental_all_leaves ---\n");
-
     VerkleTree tree_inc, tree_full;
     tree_inc.init(1);
     tree_full.init(1);
@@ -148,8 +137,6 @@ void test_incremental_all_leaves() {
 }
 
 void test_depth_two_incremental_updates() {
-    printf("\n--- test_depth_two_incremental_updates ---\n");
-
     VerkleTree tree_inc, tree_full;
     tree_inc.init(2);
     tree_full.init(2);
@@ -174,9 +161,7 @@ void test_depth_two_incremental_updates() {
 }
 
 int main() {
-    printf("========================================\n");
-    printf(" Verkle Tree Tests (Phase 3)\n");
-    printf("========================================\n");
+    printf("Verkle Tree Tests (Phase 3)\n");
 
     test_empty_tree();
     test_tree_matches_msm();
@@ -185,9 +170,6 @@ int main() {
     test_incremental_all_leaves();
     test_depth_two_incremental_updates();
 
-    printf("\n========================================\n");
-    printf(" Results: %d passed, %d failed\n", tests_passed, tests_failed);
-    printf("========================================\n");
-
+    printf("\nResults: %d passed, %d failed\n", tests_passed, tests_failed);
     return tests_failed > 0 ? 1 : 0;
 }

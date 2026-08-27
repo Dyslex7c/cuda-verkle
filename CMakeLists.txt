@@ -75,6 +75,12 @@ if(ENABLE_PHASE2)
     add_executable(test_commitment tests/test_commitment.cu)
     target_link_libraries(test_commitment cuda_verkle_lib)
     add_test(NAME TestCommitment COMMAND test_commitment)
+
+    add_executable(test_msm_gpu tests/test_msm_gpu.cu)
+    target_link_libraries(test_msm_gpu cuda_verkle_lib)
+    add_test(NAME TestMSMGPU COMMAND test_msm_gpu)
+    # A CUDA-capable build host may still not have a visible GPU (for example CI compilation jobs). The executable returns 77 in that case.
+    set_tests_properties(TestMSMGPU PROPERTIES SKIP_RETURN_CODE 77 LABELS "gpu")
 endif()
 
 if(ENABLE_PHASE3)

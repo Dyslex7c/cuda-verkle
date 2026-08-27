@@ -19,6 +19,7 @@
 /test_field
 /test_curve
 /test_msm
+/test_msm_gpu
 /test_commitment
 /test_tree
 

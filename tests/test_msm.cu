@@ -7,7 +7,6 @@
 #include "../src/curve/banderwagon.cuh"
 #include "../src/constants/crs_points.cuh"
 #include "../src/msm/msm_kernel.cuh"
-#include "../src/msm/msm_kernel.cu"
 
 static int tests_passed = 0;
 static int tests_failed = 0;
@@ -18,8 +17,6 @@ static int tests_failed = 0;
 } while(0)
 
 void test_msm_all_zeros() {
-    printf("\n--- test_msm_all_zeros ---\n");
-
     crs::CRSPoints crs_pts;
     crs::load_crs(crs_pts);
 
@@ -31,8 +28,6 @@ void test_msm_all_zeros() {
 }
 
 void test_msm_single_one() {
-    printf("\n--- test_msm_single_one ---\n");
-
     crs::CRSPoints crs_pts;
     crs::load_crs(crs_pts);
 
@@ -50,8 +45,6 @@ void test_msm_single_one() {
 }
 
 void test_msm_single_at_index() {
-    printf("\n--- test_msm_single_at_index ---\n");
-
     crs::CRSPoints crs_pts;
     crs::load_crs(crs_pts);
 
@@ -69,8 +62,6 @@ void test_msm_single_at_index() {
 }
 
 void test_msm_scalar_two() {
-    printf("\n--- test_msm_scalar_two ---\n");
-
     crs::CRSPoints crs_pts;
     crs::load_crs(crs_pts);
 
@@ -90,8 +81,6 @@ void test_msm_scalar_two() {
 }
 
 void test_msm_pippenger_vs_naive() {
-    printf("\n--- test_msm_pippenger_vs_naive ---\n");
-
     crs::CRSPoints crs_pts;
     crs::load_crs(crs_pts);
 
@@ -112,8 +101,6 @@ void test_msm_pippenger_vs_naive() {
 }
 
 void test_msm_all_ones() {
-    printf("\n--- test_msm_all_ones ---\n");
-
     crs::CRSPoints crs_pts;
     crs::load_crs(crs_pts);
 
@@ -132,8 +119,6 @@ void test_msm_all_ones() {
 }
 
 void test_msm_sequential() {
-    printf("\n--- test_msm_sequential ---\n");
-
     crs::CRSPoints crs_pts;
     crs::load_crs(crs_pts);
 
@@ -149,8 +134,6 @@ void test_msm_sequential() {
 }
 
 void test_commitment_serialization() {
-    printf("\n--- test_commitment_serialization ---\n");
-
     crs::CRSPoints crs_pts;
     crs::load_crs(crs_pts);
 
@@ -175,9 +158,7 @@ void test_commitment_serialization() {
 }
 
 int main() {
-    printf("========================================\n");
-    printf(" MSM and Commitment Tests (Phase 2)\n");
-    printf("========================================\n");
+    printf("MSM and Commitment Tests (Phase 2)\n");
 
     test_msm_all_zeros();
     test_msm_single_one();
@@ -188,9 +169,6 @@ int main() {
     test_msm_sequential();
     test_commitment_serialization();
 
-    printf("\n========================================\n");
-    printf(" Results: %d passed, %d failed\n", tests_passed, tests_failed);
-    printf("========================================\n");
-
+    printf("\nResults: %d passed, %d failed\n", tests_passed, tests_failed);
     return tests_failed > 0 ? 1 : 0;
 }

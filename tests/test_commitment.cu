@@ -8,8 +8,6 @@
 #include "../src/constants/crs_points.cuh"
 #include "../src/msm/msm_kernel.cuh"
 #include "../src/commitment/pedersen.cuh"
-#include "../src/msm/msm_kernel.cu"
-#include "../src/commitment/pedersen.cu"
 
 static int tests_passed = 0;
 static int tests_failed = 0;
@@ -20,8 +18,6 @@ static int tests_failed = 0;
 } while(0)
 
 void test_commitment_identity() {
-    printf("\n--- test_commitment_identity ---\n");
-
     PedersenCommitment pc;
     pc.init();
 
@@ -34,8 +30,6 @@ void test_commitment_identity() {
 }
 
 void test_commitment_single_basis() {
-    printf("\n--- test_commitment_single_basis ---\n");
-
     PedersenCommitment pc;
     pc.init();
 
@@ -51,8 +45,6 @@ void test_commitment_single_basis() {
 }
 
 void test_commitment_to_bytes() {
-    printf("\n--- test_commitment_to_bytes ---\n");
-
     PedersenCommitment pc;
     pc.init();
 
@@ -74,8 +66,6 @@ void test_commitment_to_bytes() {
 }
 
 void test_commitment_linearity() {
-    printf("\n--- test_commitment_linearity ---\n");
-
     PedersenCommitment pc;
     pc.init();
 
@@ -104,18 +94,13 @@ void test_commitment_linearity() {
 }
 
 int main() {
-    printf("========================================\n");
-    printf(" Pedersen Commitment Tests\n");
-    printf("========================================\n");
+    printf("Pedersen Commitment Tests\n");
 
     test_commitment_identity();
     test_commitment_single_basis();
     test_commitment_to_bytes();
     test_commitment_linearity();
 
-    printf("\n========================================\n");
-    printf(" Results: %d passed, %d failed\n", tests_passed, tests_failed);
-    printf("========================================\n");
-
+    printf("\nResults: %d passed, %d failed\n", tests_passed, tests_failed);
     return tests_failed > 0 ? 1 : 0;
 }

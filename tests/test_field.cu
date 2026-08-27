@@ -26,8 +26,6 @@ static void print_fp_raw(const char* label, const Fp& a) {
 } while(0)
 
 void test_fp_zero_one() {
-    printf("\n--- test_fp_zero_one ---\n");
-
     // 0 + 0 = 0
     Fp z = fp_add(FP_ZERO, FP_ZERO);
     ASSERT_FP_EQ(z, FP_ZERO, "0 + 0 = 0");
@@ -54,8 +52,6 @@ void test_fp_zero_one() {
 }
 
 void test_fp_add_sub() {
-    printf("\n--- test_fp_add_sub ---\n");
-
     Fp a = fp_from_u64(42);
     Fp b = fp_from_u64(58);
     Fp c = fp_from_u64(100);
@@ -79,8 +75,6 @@ void test_fp_add_sub() {
 }
 
 void test_fp_mul() {
-    printf("\n--- test_fp_mul ---\n");
-
     Fp a = fp_from_u64(7);
     Fp b = fp_from_u64(13);
     Fp c = fp_from_u64(91);
@@ -111,8 +105,6 @@ void test_fp_mul() {
 }
 
 void test_fp_sqr() {
-    printf("\n--- test_fp_sqr ---\n");
-
     Fp a = fp_from_u64(17);
     Fp expected = fp_from_u64(289); // 17^2
 
@@ -125,8 +117,6 @@ void test_fp_sqr() {
 }
 
 void test_fp_inv() {
-    printf("\n--- test_fp_inv ---\n");
-
     // inv(1) = 1
     Fp inv_one = fp_inv(FP_ONE);
     ASSERT_FP_EQ(inv_one, FP_ONE, "inv(1) = 1");
@@ -145,8 +135,6 @@ void test_fp_inv() {
 }
 
 void test_fp_from_raw_roundtrip() {
-    printf("\n--- test_fp_from_raw_roundtrip ---\n");
-
     // Test that from_raw -> to_raw is identity
     uint32_t raw_in[8] = {0xdeadbeef, 0x12345678, 0x9abcdef0, 0x11111111,
                            0x22222222, 0x33333333, 0x44444444, 0x10000000};
@@ -173,8 +161,6 @@ void test_fp_from_raw_roundtrip() {
 }
 
 void test_fp_modular_reduction() {
-    printf("\n--- test_fp_modular_reduction ---\n");
-
     // Test that (p-1) + 1 = 0 (mod p)
     uint32_t p_minus_1[8] = {
         0x00000000, 0xffffffff, 0xfffe5bfe, 0x53bda402,
@@ -190,8 +176,6 @@ void test_fp_modular_reduction() {
 }
 
 void test_fr_basic() {
-    printf("\n--- test_fr_basic ---\n");
-
     // 0 + 0 = 0
     Fr z = fr_add(FR_ZERO, FR_ZERO);
     ASSERT_TRUE(fr_eq(z, FR_ZERO), "Fr: 0 + 0 = 0");
@@ -219,8 +203,6 @@ void test_fr_basic() {
 }
 
 void test_fr_to_raw_roundtrip() {
-    printf("\n--- test_fr_to_raw_roundtrip ---\n");
-
     uint32_t raw_in[8] = {0x11111111, 0x22222222, 0x00000000, 0x00000000,
                            0x00000000, 0x00000000, 0x00000000, 0x00000000};
     Fr a = fr_from_raw(raw_in);
@@ -235,9 +217,7 @@ void test_fr_to_raw_roundtrip() {
 }
 
 int main() {
-    printf("========================================\n");
-    printf(" Field Arithmetic Tests (Fp and Fr)\n");
-    printf("========================================\n");
+    printf("Field Arithmetic Tests (Fp and Fr)\n");
 
     test_fp_zero_one();
     test_fp_add_sub();
@@ -250,9 +230,6 @@ int main() {
     test_fr_basic();
     test_fr_to_raw_roundtrip();
 
-    printf("\n========================================\n");
-    printf(" Results: %d passed, %d failed\n", tests_passed, tests_failed);
-    printf("========================================\n");
-
+    printf("\nResults: %d passed, %d failed\n", tests_passed, tests_failed);
     return tests_failed > 0 ? 1 : 0;
 }

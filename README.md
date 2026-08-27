@@ -1,10 +1,10 @@
 # CUDA Ethereum Verkle trees
 
-A C++/CUDA implementation of Pedersen vector commitments over the Banderwagon group, targeting Ethereum's Verkle tree proposal ([EIP-6800](https://eips.ethereum.org/EIPS/eip-6800)).
+A C++/CUDA research implementation of Pedersen vector commitments over the Banderwagon group, targeting Ethereum's Verkle tree proposal ([EIP-6800](https://eips.ethereum.org/EIPS/eip-6800)).
 
-Covers the full cryptographic stack: Montgomery field arithmetic → twisted Edwards curve operations → Pippenger multi-scalar multiplication → Pedersen commitments → incremental tree recommitment. All arithmetic is written to compile on both CPU (any C++17 compiler) and GPU (nvcc with PTX intrinsics).
+Covers the core commitment stack: Montgomery field arithmetic → twisted Edwards curve operations → Pippenger multi-scalar multiplication → Pedersen commitments → incremental tree recommitment. All arithmetic is written to compile on both CPU (any C++17 compiler) and GPU (nvcc with PTX intrinsics). The tree remains a simulation and this is not a complete EIP-6800 implementation or production-ready cryptographic software.
 
-> **Status:** 86 self-tests pass on host. GPU kernel launch and profiling are next.
+> **Status:** 86 host self-tests pass. A correctness-first CUDA MSM kernel and GPU integration suite are included; GPU profiling and Pippenger optimization remain next.
 
 ---
 
@@ -26,12 +26,12 @@ git clone <this-repo> && cd cuda-verkle
 # Run all 86 unit and integration tests
 c++ -std=c++17 -x c++ -O2 -I src -o test_field tests/test_field.cu && ./test_field
 c++ -std=c++17 -x c++ -O2 -I src -o test_curve tests/test_curve.cu && ./test_curve
-c++ -std=c++17 -x c++ -O2 -I src -o test_msm tests/test_msm.cu && ./test_msm
-c++ -std=c++17 -x c++ -O2 -I src -o test_commitment tests/test_commitment.cu && ./test_commitment
-c++ -std=c++17 -x c++ -O2 -I src -o test_tree tests/test_tree.cu && ./test_tree
+c++ -std=c++17 -x c++ -O2 -I src -o test_msm tests/test_msm.cu src/msm/msm_kernel.cu && ./test_msm
+c++ -std=c++17 -x c++ -O2 -I src -o test_commitment tests/test_commitment.cu src/msm/msm_kernel.cu src/commitment/pedersen.cu && ./test_commitment
+c++ -std=c++17 -x c++ -O2 -I src -o test_tree tests/test_tree.cu src/msm/msm_kernel.cu && ./test_tree
 
 # Run CPU benchmarks
-c++ -std=c++17 -x c++ -O2 -I src -o bench src/benchmark/bench_msm.cu && ./bench
+c++ -std=c++17 -x c++ -O2 -I src -o bench src/benchmark/bench_msm.cu src/msm/msm_kernel.cu && ./bench
 ```
 
 ---
@@ -45,12 +45,13 @@ If you have an NVIDIA GPU and the CUDA Toolkit installed:
 # Compile and run test suite with nvcc
 nvcc -std=c++17 -O3 -I src -arch=sm_75 -o test_field tests/test_field.cu && ./test_field
 nvcc -std=c++17 -O3 -I src -arch=sm_75 -o test_curve tests/test_curve.cu && ./test_curve
-nvcc -std=c++17 -O3 -I src -arch=sm_75 -o test_msm tests/test_msm.cu && ./test_msm
-nvcc -std=c++17 -O3 -I src -arch=sm_75 -o test_commitment tests/test_commitment.cu && ./test_commitment
-nvcc -std=c++17 -O3 -I src -arch=sm_75 -o test_tree tests/test_tree.cu && ./test_tree
+nvcc -std=c++17 -O3 -I src -arch=sm_75 -o test_msm tests/test_msm.cu src/msm/msm_kernel.cu && ./test_msm
+nvcc -std=c++17 -O3 -I src -arch=sm_75 -o test_commitment tests/test_commitment.cu src/msm/msm_kernel.cu src/commitment/pedersen.cu && ./test_commitment
+nvcc -std=c++17 -O3 -I src -arch=sm_75 -o test_tree tests/test_tree.cu src/msm/msm_kernel.cu && ./test_tree
+nvcc -std=c++17 -O3 -I src -arch=sm_75 -o test_msm_gpu tests/test_msm_gpu.cu src/msm/msm_kernel.cu && ./test_msm_gpu
 
 # Compile and run benchmarks
-nvcc -std=c++17 -O3 -I src -arch=sm_75 -o bench src/benchmark/bench_msm.cu && ./bench
+nvcc -std=c++17 -O3 -I src -arch=sm_75 -o bench src/benchmark/bench_msm.cu src/msm/msm_kernel.cu && ./bench
 ```
 
 > **Target Architecture (`-arch=sm_XX`):**
@@ -122,3 +123,4 @@ The Rust reference generator (`rust-reference/`) can produce external test vecto
 ## License
 
 This project is licensed under the [MIT License](./LICENSE).
+See [third-party notices](./THIRD_PARTY_NOTICES.md) for CRS-data provenance.

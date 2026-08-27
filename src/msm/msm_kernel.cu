@@ -1,5 +1,9 @@
 #include "msm_kernel.cuh"
 
+#ifdef __CUDACC__
+#include <cuda_runtime.h>
+#endif
+
 // Extract bits [window_idx*w, window_idx*w + w) from the scalar
 __host__ __device__ inline uint32_t get_window(const Fr& scalar, int window_idx, int w) {
     uint32_t raw[8];
@@ -87,3 +91,147 @@ __host__ __device__ PointExtended msm_compute(
     
     return total;
 }
+
+#ifdef __CUDACC__
+namespace {
+
+// One thread computes one scalar multiplication.  The 256 partial points are
+// then reduced in shared memory.  This avoids cross-thread mutation of a point
+// and is deterministic for a fixed input, unlike an atomic bucket accumulator.
+// It is deliberately a correctness baseline; a future optimized kernel can
+// replace the per-thread scalar multiplication with parallel Pippenger windows
+// without changing the host API.
+__global__ void msm_gpu_baseline_kernel(
+    const Fr* scalars,
+    const Fp* point_x,
+    const Fp* point_y,
+    int n,
+    PointExtended* result) {
+    __shared__ PointExtended partials[MSM_SIZE];
+
+    const int tid = static_cast<int>(threadIdx.x);
+    PointExtended partial = point_identity();
+    if (tid < n && !fr_is_zero(scalars[tid])) {
+        PointAffine base = {point_x[tid], point_y[tid]};
+        partial = scalar_mul(point_from_affine(base), scalars[tid]);
+    }
+    partials[tid] = partial;
+    __syncthreads();
+
+    for (int stride = MSM_SIZE / 2; stride > 0; stride >>= 1) {
+        if (tid < stride) {
+            partials[tid] = point_add(partials[tid], partials[tid + stride]);
+        }
+        __syncthreads();
+    }
+
+    if (tid == 0) *result = partials[0];
+}
+
+MsmGpuStatus status_from_cuda(cudaError_t error) {
+    if (error == cudaSuccess) return MsmGpuStatus::success;
+    if (error == cudaErrorNoDevice || error == cudaErrorInsufficientDriver) {
+        return MsmGpuStatus::no_cuda_device;
+    }
+    return MsmGpuStatus::cuda_error;
+}
+
+void clear_context(MsmGpuContext& context) {
+    context.device_scalars = nullptr;
+    context.device_point_x = nullptr;
+    context.device_point_y = nullptr;
+    context.device_result = nullptr;
+    context.initialized = false;
+}
+
+} // namespace
+
+MsmGpuStatus msm_gpu_context_init(
+    MsmGpuContext& context,
+    const Fp point_x[MSM_SIZE],
+    const Fp point_y[MSM_SIZE]) {
+    if (point_x == nullptr || point_y == nullptr) {
+        return MsmGpuStatus::invalid_argument;
+    }
+
+    MsmGpuStatus destroy_status = msm_gpu_context_destroy(context);
+    if (destroy_status != MsmGpuStatus::success) return destroy_status;
+
+    int device_count = 0;
+    cudaError_t error = cudaGetDeviceCount(&device_count);
+    if (error != cudaSuccess || device_count == 0) {
+        return error == cudaSuccess ? MsmGpuStatus::no_cuda_device : status_from_cuda(error);
+    }
+
+    error = cudaMalloc(&context.device_scalars, MSM_SIZE * sizeof(Fr));
+    if (error != cudaSuccess) goto fail;
+    error = cudaMalloc(&context.device_point_x, MSM_SIZE * sizeof(Fp));
+    if (error != cudaSuccess) goto fail;
+    error = cudaMalloc(&context.device_point_y, MSM_SIZE * sizeof(Fp));
+    if (error != cudaSuccess) goto fail;
+    error = cudaMalloc(&context.device_result, sizeof(PointExtended));
+    if (error != cudaSuccess) goto fail;
+
+    error = cudaMemcpy(context.device_point_x, point_x, MSM_SIZE * sizeof(Fp), cudaMemcpyHostToDevice);
+    if (error != cudaSuccess) goto fail;
+    error = cudaMemcpy(context.device_point_y, point_y, MSM_SIZE * sizeof(Fp), cudaMemcpyHostToDevice);
+    if (error != cudaSuccess) goto fail;
+
+    context.initialized = true;
+    return MsmGpuStatus::success;
+
+fail:
+    const MsmGpuStatus status = status_from_cuda(error);
+    (void)msm_gpu_context_destroy(context);
+    return status;
+}
+
+MsmGpuStatus msm_gpu_compute(
+    MsmGpuContext& context,
+    const Fr scalars[],
+    int n,
+    PointExtended* result) {
+    if (!context.initialized) return MsmGpuStatus::not_initialized;
+    if (result == nullptr || n < 0 || n > MSM_SIZE || (n > 0 && scalars == nullptr)) {
+        return MsmGpuStatus::invalid_argument;
+    }
+    if (n == 0) {
+        *result = point_identity();
+        return MsmGpuStatus::success;
+    }
+
+    cudaError_t error = cudaMemcpy(
+        context.device_scalars, scalars, static_cast<size_t>(n) * sizeof(Fr), cudaMemcpyHostToDevice);
+    if (error != cudaSuccess) return status_from_cuda(error);
+
+    msm_gpu_baseline_kernel<<<1, MSM_SIZE>>>(
+        static_cast<const Fr*>(context.device_scalars),
+        static_cast<const Fp*>(context.device_point_x),
+        static_cast<const Fp*>(context.device_point_y),
+        n,
+        static_cast<PointExtended*>(context.device_result));
+    error = cudaGetLastError();
+    if (error != cudaSuccess) return status_from_cuda(error);
+    error = cudaDeviceSynchronize();
+    if (error != cudaSuccess) return status_from_cuda(error);
+    error = cudaMemcpy(result, context.device_result, sizeof(PointExtended), cudaMemcpyDeviceToHost);
+    return status_from_cuda(error);
+}
+
+MsmGpuStatus msm_gpu_context_destroy(MsmGpuContext& context) {
+    cudaError_t first_error = cudaSuccess;
+    void* allocations[] = {
+        context.device_scalars,
+        context.device_point_x,
+        context.device_point_y,
+        context.device_result,
+    };
+    for (void* allocation : allocations) {
+        if (allocation == nullptr) continue;
+        cudaError_t error = cudaFree(allocation);
+        if (first_error == cudaSuccess && error != cudaSuccess) first_error = error;
+    }
+    clear_context(context);
+    return status_from_cuda(first_error);
+}
+#endif

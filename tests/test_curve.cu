@@ -33,8 +33,6 @@ static void print_point_affine(const char* label, const PointExtended& p) {
 }
 
 void test_identity() {
-    printf("\n--- test_identity ---\n");
-
     PointExtended id = point_identity();
     ASSERT_TRUE(point_is_identity(id), "identity is identity");
 
@@ -44,8 +42,6 @@ void test_identity() {
 }
 
 void test_point_add_properties() {
-    printf("\n--- test_point_add_properties ---\n");
-
     // Load two CRS points as test points
     crs::CRSPoints crs_pts;
     crs::load_crs(crs_pts);
@@ -76,8 +72,6 @@ void test_point_add_properties() {
 }
 
 void test_double_consistency() {
-    printf("\n--- test_double_consistency ---\n");
-
     crs::CRSPoints crs_pts;
     crs::load_crs(crs_pts);
 
@@ -94,8 +88,6 @@ void test_double_consistency() {
 }
 
 void test_scalar_mul() {
-    printf("\n--- test_scalar_mul ---\n");
-
     crs::CRSPoints crs_pts;
     crs::load_crs(crs_pts);
 
@@ -132,8 +124,6 @@ void test_scalar_mul() {
 }
 
 void test_associativity() {
-    printf("\n--- test_associativity ---\n");
-
     crs::CRSPoints crs_pts;
     crs::load_crs(crs_pts);
 
@@ -153,8 +143,6 @@ void test_associativity() {
 }
 
 void test_banderwagon_equality() {
-    printf("\n--- test_banderwagon_equality ---\n");
-
     crs::CRSPoints crs_pts;
     crs::load_crs(crs_pts);
 
@@ -179,8 +167,6 @@ void test_banderwagon_equality() {
 }
 
 void test_banderwagon_serialization() {
-    printf("\n--- test_banderwagon_serialization ---\n");
-
     crs::CRSPoints crs_pts;
     crs::load_crs(crs_pts);
 
@@ -213,8 +199,6 @@ void test_banderwagon_serialization() {
 }
 
 void test_crs_loading() {
-    printf("\n--- test_crs_loading ---\n");
-
     crs::CRSPoints crs_pts;
     crs::load_crs(crs_pts);
 
@@ -240,8 +224,6 @@ void test_crs_loading() {
 }
 
 void test_scalar_distributivity() {
-    printf("\n--- test_scalar_distributivity ---\n");
-
     crs::CRSPoints crs_pts;
     crs::load_crs(crs_pts);
 
@@ -264,10 +246,7 @@ void test_scalar_distributivity() {
 }
 
 int main() {
-    printf("========================================\n");
-    printf(" Curve Arithmetic Tests\n");
-    printf(" Bandersnatch / Banderwagon\n");
-    printf("========================================\n");
+    printf("Curve Arithmetic Tests (Bandersnatch / Banderwagon)\n");
 
     test_identity();
     test_point_add_properties();
@@ -279,9 +258,6 @@ int main() {
     test_crs_loading();
     test_scalar_distributivity();
 
-    printf("\n========================================\n");
-    printf(" Results: %d passed, %d failed\n", tests_passed, tests_failed);
-    printf("========================================\n");
-
+    printf("\nResults: %d passed, %d failed\n", tests_passed, tests_failed);
     return tests_failed > 0 ? 1 : 0;
 }

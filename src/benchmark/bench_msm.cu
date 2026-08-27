@@ -13,7 +13,6 @@
 #include "../src/curve/banderwagon.cuh"
 #include "../src/constants/crs_points.cuh"
 #include "../src/msm/msm_kernel.cuh"
-#include "../src/msm/msm_kernel.cu"
 
 struct CpuTimer {
     std::chrono::high_resolution_clock::time_point start_;
