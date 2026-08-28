@@ -1,7 +1,8 @@
 // bench_msm.cu - MSM and commitment benchmarks
 // Measures timing for the core MSM operation at various scales.
 // On CPU: uses <chrono> for timing.
-// CUDA execution is not implemented yet; these are CPU baselines.
+// These CPU baselines are kept as a comparison point for the CUDA Pippenger
+// implementation; GPU timing support is still to be added.
 
 #include <cstdio>
 #include <cstdint>

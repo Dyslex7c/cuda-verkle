@@ -133,6 +133,66 @@ void test_msm_sequential() {
     ASSERT_TRUE(bw_eq(bw_pip, bw_naive), "Pippenger matches naive (sequential 1..256)");
 }
 
+// verifies the CUDA decomposition even on hosts without an NVIDIA GPU.
+PointExtended msm_gpu_pippenger_model(
+    const Fr scalars[], const Fp point_x[], const Fp point_y[], int n) {
+    uint32_t raw_scalars[MSM_SIZE][8];
+    for (int i = 0; i < n; ++i) fr_to_raw(scalars[i], raw_scalars[i]);
+
+    PointExtended window_sums[MSM_NUM_WINDOWS];
+    for (int window = 0; window < MSM_NUM_WINDOWS; ++window) {
+        PointExtended buckets[MSM_BUCKET_COUNT];
+        for (int bucket = 0; bucket < MSM_BUCKET_COUNT; ++bucket) {
+            buckets[bucket] = point_identity();
+        }
+
+        const int bit_start = window * MSM_WINDOW_BITS;
+        const int limb_index = bit_start / 32;
+        const int bit_offset = bit_start % 32;
+        for (int i = 0; i < n; ++i) {
+            uint32_t digit = (raw_scalars[i][limb_index] >> bit_offset) &
+                             (MSM_BUCKET_COUNT - 1);
+            if (digit != 0) {
+                PointAffine base = {point_x[i], point_y[i]};
+                buckets[digit] = point_add(buckets[digit], point_from_affine(base));
+            }
+        }
+
+        PointExtended running_sum = point_identity();
+        window_sums[window] = point_identity();
+        for (int bucket = MSM_BUCKET_COUNT - 1; bucket >= 1; --bucket) {
+            running_sum = point_add(running_sum, buckets[bucket]);
+            window_sums[window] = point_add(window_sums[window], running_sum);
+        }
+    }
+
+    PointExtended total = window_sums[MSM_NUM_WINDOWS - 1];
+    for (int window = MSM_NUM_WINDOWS - 2; window >= 0; --window) {
+        for (int bit = 0; bit < MSM_WINDOW_BITS; ++bit) total = point_double(total);
+        total = point_add(total, window_sums[window]);
+    }
+    return total;
+}
+
+void test_gpu_pippenger_window_model() {
+    printf("\n--- test_gpu_pippenger_window_model ---\n");
+
+    crs::CRSPoints crs_pts;
+    crs::load_crs(crs_pts);
+
+    Fr scalars[MSM_SIZE];
+    for (int i = 0; i < MSM_SIZE; ++i) {
+        // Values near Fr's modulus exercise the highest Pippenger windows.
+        scalars[i] = (i & 1) ? fr_sub(FR_ZERO, fr_from_u64(i + 1))
+                             : fr_from_u64(static_cast<uint64_t>(i + 1) * 1234567ULL);
+    }
+
+    PointExtended model = msm_gpu_pippenger_model(scalars, crs_pts.x, crs_pts.y, MSM_SIZE);
+    PointExtended cpu = msm_compute(scalars, crs_pts.x, crs_pts.y, MSM_SIZE);
+    ASSERT_TRUE(bw_eq({model}, {cpu}),
+                "GPU Pippenger window model matches CPU Pippenger");
+}
+
 void test_commitment_serialization() {
     crs::CRSPoints crs_pts;
     crs::load_crs(crs_pts);
@@ -167,6 +227,7 @@ int main() {
     test_msm_pippenger_vs_naive();
     test_msm_all_ones();
     test_msm_sequential();
+    test_gpu_pippenger_window_model();
     test_commitment_serialization();
 
     printf("\nResults: %d passed, %d failed\n", tests_passed, tests_failed);

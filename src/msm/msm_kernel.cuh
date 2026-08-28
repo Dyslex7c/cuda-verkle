@@ -7,6 +7,9 @@
 
 // Maximum number of points in a single MSM (fixed for Verkle tree nodes)
 static constexpr int MSM_SIZE = 256;
+static constexpr int MSM_WINDOW_BITS = 8;
+static constexpr int MSM_BUCKET_COUNT = 1 << MSM_WINDOW_BITS;
+static constexpr int MSM_NUM_WINDOWS = (253 + MSM_WINDOW_BITS - 1) / MSM_WINDOW_BITS;
 
 // Status returned by the CUDA MSM API.  The CUDA path is intentionally
 // separate from the CPU Pippenger reference below: it owns device memory and
@@ -26,6 +29,8 @@ struct MsmGpuContext {
     void* device_scalars = nullptr;
     void* device_point_x = nullptr;
     void* device_point_y = nullptr;
+    void* device_scalar_raw = nullptr;
+    void* device_window_sums = nullptr;
     void* device_result = nullptr;
     bool initialized = false;
 
@@ -43,8 +48,10 @@ __host__ __device__ PointExtended msm_cpu_reference(
     const Fp point_y[],  // SoA: y-coordinates
     int n);
 
-// compute one MSM using the sequential Pippenger implementation.
-// This function is host/device compatible, but this repository does not yet provide a launched CUDA kernel or GPU memory-management API.
+// Compute one MSM using the sequential CPU Pippenger implementation. This
+// host/device-compatible function is the reference used by host tests; the
+// launched CUDA Pippenger implementation and its device-memory API are
+// declared below.
 __host__ __device__ PointExtended msm_compute(
     const Fr scalars[],
     const Fp point_x[],
@@ -59,10 +66,9 @@ MsmGpuStatus msm_gpu_context_init(
     const Fp point_x[MSM_SIZE],
     const Fp point_y[MSM_SIZE]);
 
-// Executes one MSM on the GPU.  Each scalar multiplication runs in parallel
-// and the block performs a deterministic tree reduction of the resulting
-// points.  This is a correctness-first CUDA baseline, not yet a GPU Pippenger
-// implementation.
+// Executes one fixed-width MSM using a windowed GPU Pippenger pipeline. It
+// converts Montgomery scalars once, builds one bucket table per window in
+// parallel, and combines the resulting window sums deterministically.
 MsmGpuStatus msm_gpu_compute(
     MsmGpuContext& context,
     const Fr scalars[],

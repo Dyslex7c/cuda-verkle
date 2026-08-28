@@ -4,7 +4,7 @@ A C++/CUDA research implementation of Pedersen vector commitments over the Bande
 
 Covers the core commitment stack: Montgomery field arithmetic → twisted Edwards curve operations → Pippenger multi-scalar multiplication → Pedersen commitments → incremental tree recommitment. All arithmetic is written to compile on both CPU (any C++17 compiler) and GPU (nvcc with PTX intrinsics). The tree remains a simulation and this is not a complete EIP-6800 implementation or production-ready cryptographic software.
 
-> **Status:** 86 host self-tests pass. A correctness-first CUDA MSM kernel and GPU integration suite are included; GPU profiling and Pippenger optimization remain next.
+> **Status:** 87 host self-tests pass. A windowed CUDA Pippenger MSM and GPU integration suite are included; GPU profiling and hardware validation remain next.
 
 ---
 
@@ -23,7 +23,7 @@ Any C++17 compiler (`clang++` or `g++`) works directly:
 ```bash
 git clone <this-repo> && cd cuda-verkle
 
-# Run all 86 unit and integration tests
+# Run all 87 host unit and integration tests
 c++ -std=c++17 -x c++ -O2 -I src -o test_field tests/test_field.cu && ./test_field
 c++ -std=c++17 -x c++ -O2 -I src -o test_curve tests/test_curve.cu && ./test_curve
 c++ -std=c++17 -x c++ -O2 -I src -o test_msm tests/test_msm.cu src/msm/msm_kernel.cu && ./test_msm
@@ -89,7 +89,7 @@ docker compose run --rm cuda-verkle bash -c "cd build && ctest --output-on-failu
 
 ## Tests
 
-86 tests across 5 suites, covering algebraic identities, on-curve verification of CRS points, cross-validation of Pippenger against a naive MSM, commitment homomorphism, and incremental-vs-full tree recomputation:
+87 tests across 5 host suites, covering algebraic identities, on-curve verification of CRS points, CPU/GPU-windowed Pippenger cross-validation, commitment homomorphism, and incremental-vs-full tree recomputation:
 
 The Rust reference generator (`rust-reference/`) can produce external test vectors from the canonical [rust-verkle](https://github.com/crate-crypto/rust-verkle) implementation. Build it with `cd rust-reference && cargo build --release`.
 

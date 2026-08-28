@@ -50,13 +50,12 @@ __host__ __device__ PointExtended msm_compute(
     if (n <= 0) return point_identity();
     if (n > MSM_SIZE) n = MSM_SIZE;
     
-    int w = 8;
-    int num_windows = (253 + w - 1) / w; // ceil(253 / 8) = 32
+    const int w = MSM_WINDOW_BITS;
+    const int num_windows = MSM_NUM_WINDOWS;
     
     PointExtended total = point_identity();
     
-    // For w=8, 2^w = 256
-    PointExtended buckets[256];
+    PointExtended buckets[MSM_BUCKET_COUNT];
 
     for (int window_idx = num_windows - 1; window_idx >= 0; --window_idx) {
         // Shift total by w bits
@@ -65,7 +64,7 @@ __host__ __device__ PointExtended msm_compute(
         }
         
         // Initialize buckets to identity
-        for (int i = 1; i < 256; ++i) {
+        for (int i = 1; i < MSM_BUCKET_COUNT; ++i) {
             buckets[i] = point_identity();
         }
         
@@ -81,7 +80,7 @@ __host__ __device__ PointExtended msm_compute(
         PointExtended running_sum = point_identity();
         PointExtended partial = point_identity();
         
-        for (int j = 255; j >= 1; --j) {
+        for (int j = MSM_BUCKET_COUNT - 1; j >= 1; --j) {
             running_sum = point_add(running_sum, buckets[j]);
             partial = point_add(partial, running_sum);
         }
@@ -95,37 +94,86 @@ __host__ __device__ PointExtended msm_compute(
 #ifdef __CUDACC__
 namespace {
 
-// One thread computes one scalar multiplication.  The 256 partial points are
-// then reduced in shared memory.  This avoids cross-thread mutation of a point
-// and is deterministic for a fixed input, unlike an atomic bucket accumulator.
-// It is deliberately a correctness baseline; a future optimized kernel can
-// replace the per-thread scalar multiplication with parallel Pippenger windows
-// without changing the host API.
-__global__ void msm_gpu_baseline_kernel(
+// Convert each scalar out of Montgomery form once. The Pippenger window
+// kernels then read raw scalar limbs directly instead of performing an inverse
+// Montgomery reduction for every scalar/window/bucket comparison.
+__global__ void scalar_to_raw_kernel(
     const Fr* scalars,
+    int n,
+    uint32_t* raw_scalars) {
+    const int tid = static_cast<int>(threadIdx.x);
+    if (tid < n) {
+        fr_to_raw(scalars[tid], raw_scalars + tid * 8);
+    }
+}
+
+__device__ inline uint32_t get_raw_window(
+    const uint32_t* raw_scalars,
+    int scalar_index,
+    int window_index) {
+    // MSM_WINDOW_BITS divides 32, so an 8-bit window never spans limbs.
+    const int bit_start = window_index * MSM_WINDOW_BITS;
+    const int limb_index = bit_start / 32;
+    const int bit_offset = bit_start % 32;
+    return (raw_scalars[scalar_index * 8 + limb_index] >> bit_offset) &
+           (MSM_BUCKET_COUNT - 1);
+}
+
+// Grid: one block per scalar window; block: one thread per bucket.  Each
+// bucket is owned by exactly one thread, eliminating point-addition races.
+// The 32 window blocks run concurrently and write their weighted bucket sums
+// for the final Horner-style window combination kernel.
+__global__ void msm_gpu_pippenger_windows_kernel(
+    const uint32_t* raw_scalars,
     const Fp* point_x,
     const Fp* point_y,
     int n,
-    PointExtended* result) {
-    __shared__ PointExtended partials[MSM_SIZE];
+    PointExtended* window_sums) {
+    __shared__ PointExtended buckets[MSM_BUCKET_COUNT];
 
     const int tid = static_cast<int>(threadIdx.x);
-    PointExtended partial = point_identity();
-    if (tid < n && !fr_is_zero(scalars[tid])) {
-        PointAffine base = {point_x[tid], point_y[tid]};
-        partial = scalar_mul(point_from_affine(base), scalars[tid]);
+    const int window_index = static_cast<int>(blockIdx.x);
+
+    PointExtended bucket = point_identity();
+    if (tid != 0) {
+        for (int scalar_index = 0; scalar_index < n; ++scalar_index) {
+            if (get_raw_window(raw_scalars, scalar_index, window_index) ==
+                static_cast<uint32_t>(tid)) {
+                PointAffine base = {point_x[scalar_index], point_y[scalar_index]};
+                bucket = point_add(bucket, point_from_affine(base));
+            }
+        }
     }
-    partials[tid] = partial;
+    buckets[tid] = bucket;
     __syncthreads();
 
-    for (int stride = MSM_SIZE / 2; stride > 0; stride >>= 1) {
-        if (tid < stride) {
-            partials[tid] = point_add(partials[tid], partials[tid + stride]);
+    if (tid == 0) {
+        PointExtended running_sum = point_identity();
+        PointExtended weighted_sum = point_identity();
+        for (int bucket_index = MSM_BUCKET_COUNT - 1; bucket_index >= 1; --bucket_index) {
+            running_sum = point_add(running_sum, buckets[bucket_index]);
+            weighted_sum = point_add(weighted_sum, running_sum);
         }
-        __syncthreads();
+        window_sums[window_index] = weighted_sum;
     }
+}
 
-    if (tid == 0) *result = partials[0];
+// Combine sum_j (window_sum[j] * 2^(j * MSM_WINDOW_BITS)) from the most
+// significant window down. The small serial tail is intentional: each window
+// sum has already been constructed by an independent CUDA block.
+__global__ void msm_gpu_combine_windows_kernel(
+    const PointExtended* window_sums,
+    PointExtended* result) {
+    if (threadIdx.x != 0 || blockIdx.x != 0) return;
+
+    PointExtended total = window_sums[MSM_NUM_WINDOWS - 1];
+    for (int window_index = MSM_NUM_WINDOWS - 2; window_index >= 0; --window_index) {
+        for (int bit = 0; bit < MSM_WINDOW_BITS; ++bit) {
+            total = point_double(total);
+        }
+        total = point_add(total, window_sums[window_index]);
+    }
+    *result = total;
 }
 
 MsmGpuStatus status_from_cuda(cudaError_t error) {
@@ -140,6 +188,8 @@ void clear_context(MsmGpuContext& context) {
     context.device_scalars = nullptr;
     context.device_point_x = nullptr;
     context.device_point_y = nullptr;
+    context.device_scalar_raw = nullptr;
+    context.device_window_sums = nullptr;
     context.device_result = nullptr;
     context.initialized = false;
 }
@@ -168,6 +218,10 @@ MsmGpuStatus msm_gpu_context_init(
     error = cudaMalloc(&context.device_point_x, MSM_SIZE * sizeof(Fp));
     if (error != cudaSuccess) goto fail;
     error = cudaMalloc(&context.device_point_y, MSM_SIZE * sizeof(Fp));
+    if (error != cudaSuccess) goto fail;
+    error = cudaMalloc(&context.device_scalar_raw, MSM_SIZE * 8 * sizeof(uint32_t));
+    if (error != cudaSuccess) goto fail;
+    error = cudaMalloc(&context.device_window_sums, MSM_NUM_WINDOWS * sizeof(PointExtended));
     if (error != cudaSuccess) goto fail;
     error = cudaMalloc(&context.device_result, sizeof(PointExtended));
     if (error != cudaSuccess) goto fail;
@@ -204,14 +258,28 @@ MsmGpuStatus msm_gpu_compute(
         context.device_scalars, scalars, static_cast<size_t>(n) * sizeof(Fr), cudaMemcpyHostToDevice);
     if (error != cudaSuccess) return status_from_cuda(error);
 
-    msm_gpu_baseline_kernel<<<1, MSM_SIZE>>>(
+    scalar_to_raw_kernel<<<1, MSM_SIZE>>>(
         static_cast<const Fr*>(context.device_scalars),
+        n,
+        static_cast<uint32_t*>(context.device_scalar_raw));
+    error = cudaGetLastError();
+    if (error != cudaSuccess) return status_from_cuda(error);
+
+    msm_gpu_pippenger_windows_kernel<<<MSM_NUM_WINDOWS, MSM_BUCKET_COUNT>>>(
+        static_cast<const uint32_t*>(context.device_scalar_raw),
         static_cast<const Fp*>(context.device_point_x),
         static_cast<const Fp*>(context.device_point_y),
         n,
+        static_cast<PointExtended*>(context.device_window_sums));
+    error = cudaGetLastError();
+    if (error != cudaSuccess) return status_from_cuda(error);
+
+    msm_gpu_combine_windows_kernel<<<1, 1>>>(
+        static_cast<const PointExtended*>(context.device_window_sums),
         static_cast<PointExtended*>(context.device_result));
     error = cudaGetLastError();
     if (error != cudaSuccess) return status_from_cuda(error);
+
     error = cudaDeviceSynchronize();
     if (error != cudaSuccess) return status_from_cuda(error);
     error = cudaMemcpy(result, context.device_result, sizeof(PointExtended), cudaMemcpyDeviceToHost);
@@ -224,6 +292,8 @@ MsmGpuStatus msm_gpu_context_destroy(MsmGpuContext& context) {
         context.device_scalars,
         context.device_point_x,
         context.device_point_y,
+        context.device_scalar_raw,
+        context.device_window_sums,
         context.device_result,
     };
     for (void* allocation : allocations) {
