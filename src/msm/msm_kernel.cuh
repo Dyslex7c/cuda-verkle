@@ -22,16 +22,31 @@ enum class MsmGpuStatus {
     not_initialized,
 };
 
-// Owns GPU allocations for one fixed 256-point CRS and one MSM input/output.
-// The members are opaque so including this header does not require CUDA headers
-// in host-only builds.  A context is not thread-safe; use one per host thread.
-struct MsmGpuContext {
+// Owns batch-specific device allocations. Create one workspace per CUDA stream
+// when operations need to overlap. The members are opaque so including this
+// header does not require CUDA headers in host-only builds.
+struct MsmGpuWorkspace {
     void* device_scalars = nullptr;
-    void* device_point_x = nullptr;
-    void* device_point_y = nullptr;
     void* device_scalar_raw = nullptr;
     void* device_window_sums = nullptr;
     void* device_result = nullptr;
+    int batch_capacity = 0;
+    bool initialized = false;
+
+    MsmGpuWorkspace() = default;
+    MsmGpuWorkspace(const MsmGpuWorkspace&) = delete;
+    MsmGpuWorkspace& operator=(const MsmGpuWorkspace&) = delete;
+    MsmGpuWorkspace(MsmGpuWorkspace&&) = delete;
+    MsmGpuWorkspace& operator=(MsmGpuWorkspace&&) = delete;
+};
+
+// Owns the GPU-resident fixed CRS plus a one-element default workspace for the
+// synchronous single-MSM API. Contexts are not thread-safe; callers that use
+// multiple streams should share no workspace between in-flight operations.
+struct MsmGpuContext {
+    void* device_point_x = nullptr;
+    void* device_point_y = nullptr;
+    MsmGpuWorkspace default_workspace;
     bool initialized = false;
 
     MsmGpuContext() = default;
@@ -66,6 +81,11 @@ MsmGpuStatus msm_gpu_context_init(
     const Fp point_x[MSM_SIZE],
     const Fp point_y[MSM_SIZE]);
 
+// Allocates batch-specific input, scalar-window, and output storage. The CRS
+// remains owned by MsmGpuContext and is shared by all workspaces.
+MsmGpuStatus msm_gpu_workspace_init(MsmGpuWorkspace& workspace, int batch_capacity);
+MsmGpuStatus msm_gpu_workspace_destroy(MsmGpuWorkspace& workspace);
+
 // Executes one fixed-width MSM using a windowed GPU Pippenger pipeline. It
 // converts Montgomery scalars once, builds one bucket table per window in
 // parallel, and combines the resulting window sums deterministically.
@@ -74,6 +94,32 @@ MsmGpuStatus msm_gpu_compute(
     const Fr scalars[],
     int n,
     PointExtended* result);
+
+// Enqueues a batch of fixed-width (256-scalar) GPU Pippenger MSMs. Inputs and
+// outputs are contiguous arrays of batch_count * MSM_SIZE scalars and
+// batch_count points respectively. The host buffers must remain valid until
+// msm_gpu_stream_synchronize(stream) completes. A workspace cannot be reused
+// until its previously enqueued operation on that stream has completed.
+MsmGpuStatus msm_gpu_compute_batch_async(
+    MsmGpuContext& context,
+    MsmGpuWorkspace& workspace,
+    const Fr scalars[],
+    int batch_count,
+    PointExtended results[],
+    cudaStream_t stream = 0);
+
+// Synchronous convenience form of msm_gpu_compute_batch_async on the default
+// stream. It is useful for batching without managing stream lifetimes.
+MsmGpuStatus msm_gpu_compute_batch(
+    MsmGpuContext& context,
+    MsmGpuWorkspace& workspace,
+    const Fr scalars[],
+    int batch_count,
+    PointExtended results[]);
+
+// Waits for enqueued copies and kernels in `stream`, making async results safe
+// to read and allowing the associated workspace to be reused.
+MsmGpuStatus msm_gpu_stream_synchronize(cudaStream_t stream = 0);
 
 // Releases device allocations.  It is safe to call after a failed init or more
 // than once; callers must invoke it before destroying a successfully

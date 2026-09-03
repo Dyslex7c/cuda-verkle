@@ -1,8 +1,7 @@
 // bench_msm.cu - MSM and commitment benchmarks
 // Measures timing for the core MSM operation at various scales.
 // On CPU: uses <chrono> for timing.
-// These CPU baselines are kept as a comparison point for the CUDA Pippenger
-// implementation; GPU timing support is still to be added.
+// CPU baselines plus CUDA event-timed, batched Pippenger measurements.
 
 #include <cstdio>
 #include <cstdint>
@@ -14,6 +13,10 @@
 #include "../src/curve/banderwagon.cuh"
 #include "../src/constants/crs_points.cuh"
 #include "../src/msm/msm_kernel.cuh"
+
+#ifdef __CUDACC__
+#include <cuda_runtime.h>
+#endif
 
 struct CpuTimer {
     std::chrono::high_resolution_clock::time_point start_;
@@ -202,18 +205,141 @@ void bench_point_ops() {
     if (point_is_identity(p)) printf("(prevent DCE)\n");
 }
 
+#ifdef __CUDACC__
+void fill_benchmark_scalars(Fr* scalars, int batch_count) {
+    for (int batch = 0; batch < batch_count; ++batch) {
+        uint64_t state = 0x9e3779b97f4a7c15ULL ^ static_cast<uint64_t>(batch);
+        for (int i = 0; i < MSM_SIZE; ++i) {
+            state ^= state >> 12;
+            state ^= state << 25;
+            state ^= state >> 27;
+            scalars[batch * MSM_SIZE + i] =
+                fr_from_u64(state * 0x2545f4914f6cdd1dULL);
+        }
+    }
+}
+
+void bench_msm_gpu_pippenger() {
+    constexpr int batch_count = 64;
+    constexpr int warmup_iterations = 3;
+    constexpr int timed_iterations = 20;
+
+    int device_count = 0;
+    if (cudaGetDeviceCount(&device_count) != cudaSuccess || device_count == 0) {
+        printf("\n[Benchmark] CUDA Pippenger MSM\n  SKIP: no CUDA device is available\n");
+        return;
+    }
+
+    cudaDeviceProp device{};
+    if (cudaGetDeviceProperties(&device, 0) != cudaSuccess) {
+        printf("\n[Benchmark] CUDA Pippenger MSM\n  SKIP: unable to query CUDA device\n");
+        return;
+    }
+
+    crs::CRSPoints crs_points;
+    crs::load_crs(crs_points);
+    MsmGpuContext context;
+    MsmGpuWorkspace workspace;
+    Fr* scalars = nullptr;
+    PointExtended* results = nullptr;
+    cudaStream_t stream = nullptr;
+    cudaEvent_t start = nullptr;
+    cudaEvent_t stop = nullptr;
+
+    MsmGpuStatus status = msm_gpu_context_init(context, crs_points.x, crs_points.y);
+    if (status != MsmGpuStatus::success) goto cleanup;
+    status = msm_gpu_workspace_init(workspace, batch_count);
+    if (status != MsmGpuStatus::success) goto cleanup;
+    if (cudaMallocHost(reinterpret_cast<void**>(&scalars),
+                       static_cast<size_t>(batch_count) * MSM_SIZE * sizeof(Fr)) != cudaSuccess ||
+        cudaMallocHost(reinterpret_cast<void**>(&results),
+                       static_cast<size_t>(batch_count) * sizeof(PointExtended)) != cudaSuccess ||
+        cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking) != cudaSuccess ||
+        cudaEventCreate(&start) != cudaSuccess || cudaEventCreate(&stop) != cudaSuccess) {
+        status = MsmGpuStatus::cuda_error;
+        goto cleanup;
+    }
+    fill_benchmark_scalars(scalars, batch_count);
+
+    for (int i = 0; i < warmup_iterations; ++i) {
+        status = msm_gpu_compute_batch_async(
+            context, workspace, scalars, batch_count, results, stream);
+        if (status != MsmGpuStatus::success || msm_gpu_stream_synchronize(stream) != MsmGpuStatus::success) {
+            status = MsmGpuStatus::cuda_error;
+            goto cleanup;
+        }
+    }
+
+    // Events on the same stream measure host-to-device transfer, all Pippenger
+    // kernels, and device-to-host transfer for each submitted batch.
+    if (cudaEventRecord(start, stream) != cudaSuccess) {
+        status = MsmGpuStatus::cuda_error;
+        goto cleanup;
+    }
+    for (int i = 0; i < timed_iterations; ++i) {
+        status = msm_gpu_compute_batch_async(
+            context, workspace, scalars, batch_count, results, stream);
+        if (status != MsmGpuStatus::success) goto cleanup;
+    }
+    if (cudaEventRecord(stop, stream) != cudaSuccess || cudaEventSynchronize(stop) != cudaSuccess) {
+        status = MsmGpuStatus::cuda_error;
+        goto cleanup;
+    }
+
+    {
+        float elapsed_ms = 0.0f;
+        if (cudaEventElapsedTime(&elapsed_ms, start, stop) != cudaSuccess) {
+            status = MsmGpuStatus::cuda_error;
+            goto cleanup;
+        }
+        PointExtended expected = msm_compute(scalars, crs_points.x, crs_points.y, MSM_SIZE);
+        bool matches_cpu = bw_eq({results[0]}, {expected});
+        const int total_msms = batch_count * timed_iterations;
+        printf("\n[Benchmark] CUDA Pippenger MSM (256 points, w=8)\n");
+        printf("  Device:                         %s (sm_%d%d)\n",
+               device.name, device.major, device.minor);
+        printf("  Batch size:                     %d MSMs\n", batch_count);
+        printf("  Timed batches:                  %d\n", timed_iterations);
+        printf("  End-to-end elapsed time:        %.2f ms\n", elapsed_ms);
+        printf("  Average per MSM:                %.4f ms\n", elapsed_ms / total_msms);
+        printf("  End-to-end throughput:          %.0f MSM/s\n",
+               total_msms * 1000.0 / elapsed_ms);
+        printf("  First result matches CPU:       %s\n", matches_cpu ? "yes" : "NO");
+        if (!matches_cpu) status = MsmGpuStatus::cuda_error;
+    }
+
+cleanup:
+    if (status != MsmGpuStatus::success) {
+        printf("\n[Benchmark] CUDA Pippenger MSM\n  FAILED: GPU setup or execution error (%d)\n",
+               static_cast<int>(status));
+    }
+    if (start != nullptr) cudaEventDestroy(start);
+    if (stop != nullptr) cudaEventDestroy(stop);
+    if (stream != nullptr) cudaStreamDestroy(stream);
+    if (scalars != nullptr) cudaFreeHost(scalars);
+    if (results != nullptr) cudaFreeHost(results);
+    (void)msm_gpu_workspace_destroy(workspace);
+    (void)msm_gpu_context_destroy(context);
+}
+#else
+void bench_msm_gpu_pippenger() {
+    printf("\n[Benchmark] CUDA Pippenger MSM\n");
+    printf("  SKIP: rebuild this target with nvcc on an NVIDIA GPU to measure CUDA execution.\n");
+}
+#endif
+
 int main() {
-    printf("cuda-verkle CPU Benchmarks (CPU implementation)\n");
+    printf("cuda-verkle MSM Benchmarks\n");
 
     bench_field_ops();
     bench_point_ops();
     bench_msm_256_pippenger();
     bench_msm_256_naive();
     bench_msm_sparse();
+    bench_msm_gpu_pippenger();
 
     printf("\nSummary:\n");
-    printf("  These CPU baselines establish the performance floor.\n");
-    printf("  No GPU acceleration is implemented in this benchmark.\n");
+    printf("  CPU baselines provide a reference for GPU Pippenger measurements.\n");
 
     return 0;
 }

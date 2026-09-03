@@ -4,7 +4,7 @@ A C++/CUDA research implementation of Pedersen vector commitments over the Bande
 
 Covers the core commitment stack: Montgomery field arithmetic → twisted Edwards curve operations → Pippenger multi-scalar multiplication → Pedersen commitments → incremental tree recommitment. All arithmetic is written to compile on both CPU (any C++17 compiler) and GPU (nvcc with PTX intrinsics). The tree remains a simulation and this is not a complete EIP-6800 implementation or production-ready cryptographic software.
 
-> **Status:** 87 host self-tests pass. A windowed CUDA Pippenger MSM and GPU integration suite are included; GPU profiling and hardware validation remain next.
+> **Status:** 87 host self-tests pass. A windowed CUDA Pippenger MSM with batched, stream-aware execution, GPU integration tests, and CUDA-event benchmarking is included; NVIDIA hardware validation remains next.
 
 ---
 
@@ -92,6 +92,15 @@ docker compose run --rm cuda-verkle bash -c "cd build && ctest --output-on-failu
 87 tests across 5 host suites, covering algebraic identities, on-curve verification of CRS points, CPU/GPU-windowed Pippenger cross-validation, commitment homomorphism, and incremental-vs-full tree recomputation:
 
 The Rust reference generator (`rust-reference/`) can produce external test vectors from the canonical [rust-verkle](https://github.com/crate-crypto/rust-verkle) implementation. Build it with `cd rust-reference && cargo build --release`.
+
+## Benchmarking
+
+`bench_msm` reports CPU reference timings on every platform. When built with
+`nvcc` and run on an NVIDIA GPU, it additionally measures batched GPU
+Pippenger MSMs with CUDA events. The GPU figure is end-to-end: pinned-host
+input transfer, scalar conversion, all window kernels, result transfer, and
+stream completion. It reports batch size, average time per 256-point MSM,
+throughput, device name, and a CPU cross-check of the first result.
 
 ## Curve parameters
 
