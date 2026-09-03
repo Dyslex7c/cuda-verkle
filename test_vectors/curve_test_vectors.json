@@ -1,0 +1,37 @@
+{
+  "curve": "Bandersnatch/Banderwagon",
+  "generator": {
+    "bytes": "4a2c7486fd924882bf02c6908de395122843e3e05264d7991e18e7985dad51e9"
+  },
+  "test_cases": [
+    {
+      "op": "scalar_mul",
+      "point": {
+        "bytes": "4a2c7486fd924882bf02c6908de395122843e3e05264d7991e18e7985dad51e9"
+      },
+      "scalar": "0000000000000000000000000000000000000000000000000000000000000001",
+      "result": {
+        "bytes": "4a2c7486fd924882bf02c6908de395122843e3e05264d7991e18e7985dad51e9"
+      }
+    },
+    {
+      "op": "add",
+      "a": {
+        "bytes": "4a2c7486fd924882bf02c6908de395122843e3e05264d7991e18e7985dad51e9"
+      },
+      "b": {
+        "bytes": "4a2c7486fd924882bf02c6908de395122843e3e05264d7991e18e7985dad51e9"
+      },
+      "result": {
+        "bytes": "43aa74ef706605705989e8fd38df46873b7eae5921fbed115ac9d937399ce4d5"
+      }
+    },
+    {
+      "op": "to_bytes",
+      "point": {
+        "bytes": "4a2c7486fd924882bf02c6908de395122843e3e05264d7991e18e7985dad51e9"
+      },
+      "result_bytes": "4a2c7486fd924882bf02c6908de395122843e3e05264d7991e18e7985dad51e9"
+    }
+  ]
+}

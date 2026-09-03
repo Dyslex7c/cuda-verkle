@@ -8,6 +8,9 @@
 #include "../src/constants/crs_points.cuh"
 #include "../src/msm/msm_kernel.cuh"
 #include "../src/tree/verkle_tree.cuh"
+#include "../src/util/test_vectors.cuh"
+
+#include <string>
 
 static int tests_passed = 0;
 static int tests_failed = 0;
@@ -160,6 +163,63 @@ void test_depth_two_incremental_updates() {
                 "depth-2 incremental root update matches full recompute");
 }
 
+Fr fr_from_tree_vector_hex(const std::string& hex) {
+    uint32_t limbs[8];
+    cuda_verkle::test_util::load_hex_to_limbs(hex, limbs);
+    return fr_from_raw(limbs);
+}
+
+std::string tree_bytes_to_hex(const uint8_t bytes[32]) {
+    static const char hex[] = "0123456789abcdef";
+    std::string result;
+    result.reserve(64);
+    for (int i = 0; i < 32; ++i) {
+        result += hex[bytes[i] >> 4];
+        result += hex[bytes[i] & 0x0f];
+    }
+    return result;
+}
+
+void test_rust_tree_vectors() {
+    using namespace cuda_verkle::test_util;
+    const JsonValue vectors = read_json(vector_path("tree_test_vectors.json"));
+    ASSERT_TRUE(vectors.at("tree_depth").as_size() == 1 && vectors.at("width").as_size() == 256,
+                "Rust tree vector shape is depth 1 and width 256");
+    const JsonValue& cases = vectors.at("test_cases");
+    ASSERT_TRUE(cases.type == JsonValue::Type::Array && !cases.array.empty(),
+                "Rust tree vector file contains test cases");
+
+    for (size_t case_index = 0; case_index < cases.array.size(); ++case_index) {
+        const JsonValue& test_case = cases.array[case_index];
+        const JsonValue& initial_leaves = test_case.at("initial_leaves");
+        const JsonValue& updates_json = test_case.at("updates");
+        if (initial_leaves.type != JsonValue::Type::Array || initial_leaves.array.size() != 256 ||
+            updates_json.type != JsonValue::Type::Array) {
+            throw std::runtime_error("Invalid Rust tree vector shape");
+        }
+
+        Fr leaves[256];
+        for (size_t i = 0; i < 256; ++i) leaves[i] = fr_from_tree_vector_hex(initial_leaves.array[i].as_string());
+        std::vector<LeafUpdate> updates;
+        updates.reserve(updates_json.array.size());
+        for (const JsonValue& update : updates_json.array) {
+            const size_t index = update.at("index").as_size();
+            if (index >= 256) throw std::runtime_error("Rust tree update index out of range");
+            updates.push_back({static_cast<int>(index), fr_from_tree_vector_hex(update.at("new_value").as_string())});
+        }
+
+        VerkleTree tree;
+        tree.init(1);
+        tree.set_leaves(leaves, 256);
+        tree.apply_updates_incremental(updates.data(), static_cast<int>(updates.size()));
+        uint8_t actual_root[32];
+        tree.get_root_bytes(actual_root);
+        const std::string label = "Rust tree vector " + test_case.at("name").as_string();
+        ASSERT_TRUE(tree_bytes_to_hex(actual_root) == test_case.at("expected_root").as_string(), label.c_str());
+        tree.cleanup();
+    }
+}
+
 int main() {
     printf("Verkle Tree Tests (Phase 3)\n");
 
@@ -169,6 +229,7 @@ int main() {
     test_incremental_multi_update();
     test_incremental_all_leaves();
     test_depth_two_incremental_updates();
+    test_rust_tree_vectors();
 
     printf("\nResults: %d passed, %d failed\n", tests_passed, tests_failed);
     return tests_failed > 0 ? 1 : 0;

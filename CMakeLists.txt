@@ -61,6 +61,7 @@ enable_testing()
 
 add_executable(test_field tests/test_field.cu)
 target_link_libraries(test_field cuda_verkle_lib)
+target_compile_definitions(test_field PRIVATE CUDA_VERKLE_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 add_test(NAME TestField COMMAND test_field)
 
 add_executable(test_curve tests/test_curve.cu)
@@ -74,6 +75,7 @@ if(ENABLE_PHASE2)
 
     add_executable(test_commitment tests/test_commitment.cu)
     target_link_libraries(test_commitment cuda_verkle_lib)
+    target_compile_definitions(test_commitment PRIVATE CUDA_VERKLE_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
     add_test(NAME TestCommitment COMMAND test_commitment)
 
     add_executable(test_msm_gpu tests/test_msm_gpu.cu)
@@ -86,6 +88,7 @@ endif()
 if(ENABLE_PHASE3)
     add_executable(test_tree tests/test_tree.cu)
     target_link_libraries(test_tree cuda_verkle_lib)
+    target_compile_definitions(test_tree PRIVATE CUDA_VERKLE_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
     add_test(NAME TestTree COMMAND test_tree)
 endif()
 

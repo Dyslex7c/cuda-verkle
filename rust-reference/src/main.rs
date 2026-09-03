@@ -1,8 +1,8 @@
 use ark_ed_on_bls12_381_bandersnatch::{Fq, Fr};
-use ark_ff::{BigInteger, Field, PrimeField, Zero, One};
-use banderwagon::Element;
+use ark_ff::{BigInteger, Field, PrimeField, UniformRand, Zero, One};
+use banderwagon::{multi_scalar_mul, Element};
 use ipa_multipoint::crs::CRS;
-use rand::{SeedableRng, Rng};
+use rand::SeedableRng;
 use rand::rngs::StdRng;
 use serde::Serialize;
 use std::env;
@@ -92,16 +92,18 @@ struct TreeTestCase {
 }
 
 fn fq_to_hex(f: &Fq) -> String {
-    let mut bytes = vec![0u8; 32];
-    f.into_repr().write_le(&mut bytes[..]).unwrap();
-    bytes.reverse(); // Convert LE to BE
+    let raw = f.into_bigint().to_bytes_be();
+    assert!(raw.len() <= 32, "Fq does not fit in 32 bytes");
+    let mut bytes = vec![0u8; 32 - raw.len()];
+    bytes.extend(raw);
     hex::encode(bytes)
 }
 
 fn fr_to_hex(f: &Fr) -> String {
-    let mut bytes = vec![0u8; 32];
-    f.into_repr().write_le(&mut bytes[..]).unwrap();
-    bytes.reverse(); // Convert LE to BE
+    let raw = f.into_bigint().to_bytes_be();
+    assert!(raw.len() <= 32, "Fr does not fit in 32 bytes");
+    let mut bytes = vec![0u8; 32 - raw.len()];
+    bytes.extend(raw);
     hex::encode(bytes)
 }
 
@@ -239,12 +241,12 @@ fn generate_curve_tests(_rng: &mut StdRng) -> CurveTestVectors {
     }
 }
 
-fn generate_commitment_tests(rng: &mut StdRng) -> CommitmentTestVectors {
+fn generate_commitment_tests(_rng: &mut StdRng) -> CommitmentTestVectors {
     let crs = CRS::default();
     let mut test_cases = Vec::new();
 
     let all_zeros = vec![Fr::zero(); 256];
-    let comm_zeros = crs.commit(&all_zeros).unwrap(); // Or multi_scalar_mul
+    let comm_zeros = multi_scalar_mul(&crs.G[..256], &all_zeros);
     test_cases.push(CommitmentTestCase {
         name: "all_zeros".into(),
         scalars: all_zeros.iter().map(fr_to_hex).collect(),
@@ -253,7 +255,7 @@ fn generate_commitment_tests(rng: &mut StdRng) -> CommitmentTestVectors {
 
     let mut single_one_0 = vec![Fr::zero(); 256];
     single_one_0[0] = Fr::one();
-    let comm_one_0 = crs.commit(&single_one_0).unwrap();
+    let comm_one_0 = multi_scalar_mul(&crs.G[..256], &single_one_0);
     test_cases.push(CommitmentTestCase {
         name: "single_one_at_0".into(),
         scalars: single_one_0.iter().map(fr_to_hex).collect(),
@@ -279,7 +281,7 @@ fn generate_tree_tests(rng: &mut StdRng) -> TreeTestVectors {
     let mut leaves = initial_leaves.clone();
     leaves[0] = Fr::rand(rng);
     
-    let comm = crs.commit(&leaves).unwrap();
+    let comm = multi_scalar_mul(&crs.G[..256], &leaves);
 
     test_cases.push(TreeTestCase {
         name: "single_update".into(),

@@ -26,8 +26,13 @@
 # Rust build output
 **/target/
 
-# Generated test vectors; keep their README in version control
+# Deterministic Rust-generated test vectors are versioned test fixtures.
+# Ignore any additional local experiment files in this directory.
 /test_vectors/*.json
+!/test_vectors/field_test_vectors.json
+!/test_vectors/curve_test_vectors.json
+!/test_vectors/commitment_test_vectors.json
+!/test_vectors/tree_test_vectors.json
 
 # Local editor, OS, and environment files
 .DS_Store

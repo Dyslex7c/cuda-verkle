@@ -16,7 +16,7 @@ bench: build
 	cd $(BUILD_DIR) && cmake .. -DCMAKE_CUDA_ARCHITECTURES=$(CUDA_ARCH) -DENABLE_PHASE4=ON && make -j$$(nproc) bench_msm && ./bench_msm
 
 vectors:
-	cd rust-reference && cargo run --release -- generate
+	cd rust-reference && cargo run --locked --release -- generate
 
 clean:
 	rm -rf $(BUILD_DIR)

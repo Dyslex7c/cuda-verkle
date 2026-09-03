@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstring>
+#include "../src/util/test_vectors.cuh"
 #include "../src/field/fp.cuh"
 #include "../src/field/fr.cuh"
 
@@ -216,6 +217,37 @@ void test_fr_to_raw_roundtrip() {
     ASSERT_TRUE(match, "Fr: from_raw -> to_raw roundtrip");
 }
 
+Fp fp_from_vector_hex(const std::string& hex) {
+    uint32_t limbs[8];
+    cuda_verkle::test_util::load_hex_to_limbs(hex, limbs);
+    return fp_from_raw(limbs);
+}
+
+void test_fp_rust_reference_vectors() {
+    using namespace cuda_verkle::test_util;
+    const JsonValue vectors = read_json(vector_path("field_test_vectors.json"));
+    const JsonValue& cases = vectors.at("test_cases");
+    ASSERT_TRUE(cases.type == JsonValue::Type::Array && !cases.array.empty(),
+                "Rust field vector file contains test cases");
+
+    for (size_t i = 0; i < cases.array.size(); ++i) {
+        const JsonValue& test_case = cases.array[i];
+        const std::string& op = test_case.at("op").as_string();
+        const Fp a = fp_from_vector_hex(test_case.at("a").as_string());
+        const Fp expected = fp_from_vector_hex(test_case.at("result").as_string());
+        Fp actual = FP_ZERO;
+        if (op == "add") actual = fp_add(a, fp_from_vector_hex(test_case.at("b").as_string()));
+        else if (op == "sub") actual = fp_sub(a, fp_from_vector_hex(test_case.at("b").as_string()));
+        else if (op == "mul") actual = fp_mul(a, fp_from_vector_hex(test_case.at("b").as_string()));
+        else if (op == "sqr") actual = fp_sqr(a);
+        else if (op == "inv") actual = fp_inv(a);
+        else throw std::runtime_error("Unknown Rust field vector operation: " + op);
+
+        const std::string label = "Rust Fq vector " + std::to_string(i) + " (" + op + ")";
+        ASSERT_FP_EQ(actual, expected, label.c_str());
+    }
+}
+
 int main() {
     printf("Field Arithmetic Tests (Fp and Fr)\n");
 
@@ -229,6 +261,7 @@ int main() {
 
     test_fr_basic();
     test_fr_to_raw_roundtrip();
+    test_fp_rust_reference_vectors();
 
     printf("\nResults: %d passed, %d failed\n", tests_passed, tests_failed);
     return tests_failed > 0 ? 1 : 0;

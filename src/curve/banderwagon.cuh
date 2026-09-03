@@ -46,11 +46,10 @@ __device__ __host__ inline BanderwagonElement bw_neg(const BanderwagonElement& a
     return {point_neg(a.point)};
 }
 
-// check if a field element is positive (for Banderwagon serialization).
-// convert to raw form, compare against (p-1)/2.
-// For the BLS12-381 scalar field, (p-1)/2 has MSB limb = 0x39f6d3a9.
-// A value v is positive iff v <= (p-1)/2, i.e., v[7] < 0x39f6d3a9, or
-// v[7] == 0x39f6d3a9 and lower limbs are <=.
+// Check the Banderwagon/Rust reference sign convention for serialization.
+// It defines positive as y > -y, which is exactly y > (p - 1) / 2 for a
+// canonical field element. This selects the same x or -x representative as
+// Element::to_bytes() in rust-verkle.
 __device__ __host__ inline bool fp_is_positive(const Fp& y) {
     // (p-1)/2 in little-endian 32-bit limbs:
     // p = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001
@@ -63,12 +62,12 @@ __device__ __host__ inline bool fp_is_positive(const Fp& y) {
     uint32_t raw[8];
     fp_to_raw(y, raw);
 
-    // compare raw against HALF_P (big-endian comparison)
+    // Compare raw against HALF_P (big-endian comparison).
     for (int i = 7; i >= 0; --i) {
-        if (raw[i] < HALF_P[i]) return true;
-        if (raw[i] > HALF_P[i]) return false;
+        if (raw[i] > HALF_P[i]) return true;
+        if (raw[i] < HALF_P[i]) return false;
     }
-    return true; // equal to (p-1)/2, considered positive
+    return false; // equality would mean y == -y, which is not positive
 }
 
 // serializes a Banderwagon element into a 32-byte array.
