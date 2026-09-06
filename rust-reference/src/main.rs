@@ -241,7 +241,7 @@ fn generate_curve_tests(_rng: &mut StdRng) -> CurveTestVectors {
     }
 }
 
-fn generate_commitment_tests(_rng: &mut StdRng) -> CommitmentTestVectors {
+fn generate_commitment_tests(rng: &mut StdRng) -> CommitmentTestVectors {
     let crs = CRS::default();
     let mut test_cases = Vec::new();
 
@@ -261,6 +261,19 @@ fn generate_commitment_tests(_rng: &mut StdRng) -> CommitmentTestVectors {
         scalars: single_one_0.iter().map(fr_to_hex).collect(),
         commitment: hex::encode(comm_one_0.to_bytes()),
     });
+
+    // Full-width deterministic scalars exercise all scalar windows and give
+    // the C++ suite a differential check against rust-verkle's independent
+    // MSM implementation, rather than only boundary-value fixtures.
+    for case_index in 0..4 {
+        let scalars: Vec<Fr> = (0..256).map(|_| Fr::rand(rng)).collect();
+        let commitment = multi_scalar_mul(&crs.G[..256], &scalars);
+        test_cases.push(CommitmentTestCase {
+            name: format!("random_full_width_{case_index}"),
+            scalars: scalars.iter().map(fr_to_hex).collect(),
+            commitment: hex::encode(commitment.to_bytes()),
+        });
+    }
 
     CommitmentTestVectors {
         description: "256-wide Pedersen commitment test vectors".into(),

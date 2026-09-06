@@ -73,6 +73,10 @@ if(ENABLE_PHASE2)
     target_link_libraries(test_msm cuda_verkle_lib)
     add_test(NAME TestMSM COMMAND test_msm)
 
+    add_executable(test_properties tests/test_properties.cu)
+    target_link_libraries(test_properties cuda_verkle_lib)
+    add_test(NAME TestProperties COMMAND test_properties)
+
     add_executable(test_commitment tests/test_commitment.cu)
     target_link_libraries(test_commitment cuda_verkle_lib)
     target_compile_definitions(test_commitment PRIVATE CUDA_VERKLE_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
