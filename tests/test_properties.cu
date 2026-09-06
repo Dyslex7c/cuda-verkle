@@ -71,6 +71,7 @@ void test_full_width_scalar_properties() {
     SplitMix64 rng(0x7b1d5eedc0ffee42ULL);
     bool canonical = true;
     bool roundtrip = true;
+    bool strict_decode_roundtrip = true;
     bool additive_inverse = true;
     bool multiplicative_inverse = true;
 
@@ -82,6 +83,10 @@ void test_full_width_scalar_properties() {
         canonical = canonical && raw_less_than_fr_modulus(raw);
         const Fr restored = fr_from_raw(raw);
         roundtrip = roundtrip && fr_eq(a, restored);
+        uint8_t encoded[32];
+        Fr decoded;
+        fr_to_bytes(a, encoded);
+        strict_decode_roundtrip = strict_decode_roundtrip && fr_from_bytes_strict(encoded, decoded) && fr_eq(a, decoded);
         additive_inverse = additive_inverse && fr_eq(fr_sub(fr_add(a, b), b), a);
         if (!fr_is_zero(a)) {
             multiplicative_inverse = multiplicative_inverse && fr_eq(fr_mul(a, fr_inv(a)), FR_ONE);
@@ -103,6 +108,7 @@ void test_full_width_scalar_properties() {
 
     ASSERT_TRUE(canonical, "128 full-width scalar inputs reduce to canonical Fr values");
     ASSERT_TRUE(roundtrip, "full-width scalar serialization round-trips");
+    ASSERT_TRUE(strict_decode_roundtrip, "full-width scalar strict decoding round-trips");
     ASSERT_TRUE(additive_inverse, "random Fr addition/subtraction property holds");
     ASSERT_TRUE(multiplicative_inverse, "random non-zero Fr inverse property holds");
     ASSERT_TRUE(fr_eq(reduced_modulus, FR_ZERO), "Fr modulus reduces to zero");

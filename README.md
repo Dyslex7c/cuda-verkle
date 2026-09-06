@@ -4,6 +4,8 @@ A C++/CUDA research implementation of Pedersen vector commitments over the Bande
 
 Covers the core commitment stack: Montgomery field arithmetic → twisted Edwards curve operations → Pippenger multi-scalar multiplication → Pedersen commitments → incremental tree recommitment. All arithmetic is written to compile on both CPU (any C++17 compiler) and GPU (nvcc with PTX intrinsics). The tree remains a simulation and this is not a complete EIP-6800 implementation or production-ready cryptographic software.
 
+Serialized public inputs must use the strict decoding APIs: `fr_from_bytes_strict` accepts only canonical 32-byte big-endian scalars, while `bw_from_bytes_strict` additionally recovers the curve point and rejects off-curve and non-subgroup Banderwagon encodings. These validation routines are variable-time and must not be used with secret inputs.
+
 > **Status:** 87 host self-tests pass. A windowed CUDA Pippenger MSM with batched, stream-aware execution, GPU integration tests, and CUDA-event benchmarking is included; NVIDIA hardware validation remains next.
 
 ---

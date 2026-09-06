@@ -79,16 +79,7 @@ __device__ __host__ inline void bw_to_bytes(const BanderwagonElement& e, uint8_t
         x = fp_neg(x);
     }
 
-    uint32_t raw[8];
-    fp_to_raw(x, raw);
-
-    for (int i = 0; i < 8; ++i) {
-        uint32_t limb = raw[7 - i]; // MSB limb first
-        out[i * 4 + 0] = (limb >> 24) & 0xFF;
-        out[i * 4 + 1] = (limb >> 16) & 0xFF;
-        out[i * 4 + 2] = (limb >>  8) & 0xFF;
-        out[i * 4 + 3] = limb & 0xFF;
-    }
+    fp_to_bytes(x, out);
 }
 
 // verify that (1 - a*x^2) is a quadratic residue in Fp.
@@ -112,4 +103,48 @@ __device__ __host__ inline bool bw_subgroup_check(const BanderwagonElement& e) {
 
     Fp qr_check = fp_pow(val, exp);
     return fp_eq(qr_check, one);
+}
+
+// Checks the complete twisted-Edwards equation in affine form. This is used
+// by the public decoder as a defence in depth check after recovering y.
+__device__ __host__ inline bool bw_is_on_curve(const BanderwagonElement& e) {
+    const PointAffine affine = point_to_affine(e.point);
+    const Fp x_squared = fp_sqr(affine.x);
+    const Fp y_squared = fp_sqr(affine.y);
+    const Fp lhs = fp_add(fp_mul(COEFF_A, x_squared), y_squared);
+    const Fp rhs = fp_add(FP_ONE, fp_mul(COEFF_D, fp_mul(x_squared, y_squared)));
+    return fp_eq(lhs, rhs);
+}
+
+// Recovers the canonical (largest) y coordinate from a canonical x coordinate.
+// It validates only curve membership; callers handling untrusted points must
+// also perform bw_subgroup_check(), as bw_from_bytes_strict() does below.
+__device__ __host__ inline bool bw_recover_y_from_x(const Fp& x, Fp& y) {
+    const Fp x_squared = fp_sqr(x);
+    const Fp numerator = fp_sub(fp_mul(COEFF_A, x_squared), FP_ONE);
+    const Fp denominator = fp_sub(fp_mul(COEFF_D, x_squared), FP_ONE);
+    if (fp_is_zero(denominator)) return false;
+
+    Fp recovered;
+    if (!fp_sqrt(fp_mul(numerator, fp_inv(denominator)), recovered)) return false;
+    y = fp_is_positive(recovered) ? recovered : fp_neg(recovered);
+    return true;
+}
+
+// Strictly decodes rust-verkle's 32-byte Banderwagon encoding. It rejects
+// non-canonical field encodings, x values that do not recover a curve point,
+// and curve points outside the Banderwagon subgroup. It accepts the all-zero
+// identity encoding. This function is variable-time and suitable only for
+// public, serialized input.
+__device__ __host__ inline bool bw_from_bytes_strict(const uint8_t in[32], BanderwagonElement& out) {
+    Fp x;
+    if (!fp_from_bytes_strict(in, x)) return false;
+
+    Fp y;
+    if (!bw_recover_y_from_x(x, y)) return false;
+    const BanderwagonElement candidate = {{x, y, fp_mul(x, y), FP_ONE}};
+    if (!bw_is_on_curve(candidate) || !bw_subgroup_check(candidate)) return false;
+
+    out = candidate;
+    return true;
 }

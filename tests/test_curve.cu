@@ -32,6 +32,16 @@ static void print_point_affine(const char* label, const PointExtended& p) {
     printf("\n");
 }
 
+static void limbs_to_big_endian(const uint32_t limbs[8], uint8_t out[32]) {
+    for (int i = 0; i < 8; ++i) {
+        const uint32_t limb = limbs[7 - i];
+        out[i * 4] = static_cast<uint8_t>(limb >> 24);
+        out[i * 4 + 1] = static_cast<uint8_t>(limb >> 16);
+        out[i * 4 + 2] = static_cast<uint8_t>(limb >> 8);
+        out[i * 4 + 3] = static_cast<uint8_t>(limb);
+    }
+}
+
 void test_identity() {
     PointExtended id = point_identity();
     ASSERT_TRUE(point_is_identity(id), "identity is identity");
@@ -198,6 +208,91 @@ void test_banderwagon_serialization() {
     printf("\n");
 }
 
+void test_strict_scalar_decoding() {
+    const Fr inputs[] = {
+        FR_ZERO,
+        FR_ONE,
+        fr_from_u64(42),
+        fr_from_u64(0xffffffffULL),
+    };
+    bool all_roundtrip = true;
+    for (const Fr& input : inputs) {
+        uint8_t bytes[32];
+        Fr decoded;
+        fr_to_bytes(input, bytes);
+        all_roundtrip = all_roundtrip && fr_from_bytes_strict(bytes, decoded) && fr_eq(input, decoded);
+    }
+    ASSERT_TRUE(all_roundtrip, "strict scalar decoding round-trips canonical inputs");
+
+    uint8_t modulus[32];
+    limbs_to_big_endian(FR_MODULUS, modulus);
+    Fr ignored;
+    ASSERT_TRUE(!fr_from_bytes_strict(modulus, ignored), "strict scalar decoder rejects subgroup order");
+
+    uint8_t all_ones[32];
+    std::memset(all_ones, 0xff, sizeof(all_ones));
+    ASSERT_TRUE(!fr_from_bytes_strict(all_ones, ignored), "strict scalar decoder rejects non-canonical all-ones input");
+}
+
+void test_strict_banderwagon_decoding() {
+    crs::CRSPoints crs_pts;
+    crs::load_crs(crs_pts);
+    const BanderwagonElement generator = {point_from_affine({crs_pts.x[0], crs_pts.y[0]})};
+    uint8_t encoded[32];
+    bw_to_bytes(generator, encoded);
+
+    BanderwagonElement decoded;
+    uint8_t reencoded[32];
+    const bool decoded_generator = bw_from_bytes_strict(encoded, decoded);
+    if (decoded_generator) bw_to_bytes(decoded, reencoded);
+    ASSERT_TRUE(decoded_generator && bw_eq(generator, decoded) && std::memcmp(encoded, reencoded, 32) == 0,
+                "strict Banderwagon decoder round-trips Rust-compatible generator bytes");
+
+    bool sampled_crs_roundtrip = true;
+    for (int i = 0; i < 256; i += 17) {
+        const BanderwagonElement source = {point_from_affine({crs_pts.x[i], crs_pts.y[i]})};
+        uint8_t source_bytes[32];
+        uint8_t checked_bytes[32];
+        bw_to_bytes(source, source_bytes);
+        if (!bw_from_bytes_strict(source_bytes, decoded)) {
+            sampled_crs_roundtrip = false;
+            break;
+        }
+        bw_to_bytes(decoded, checked_bytes);
+        sampled_crs_roundtrip = sampled_crs_roundtrip && bw_eq(source, decoded) &&
+                                std::memcmp(source_bytes, checked_bytes, 32) == 0;
+    }
+    ASSERT_TRUE(sampled_crs_roundtrip, "strict Banderwagon decoder round-trips sampled CRS encodings");
+
+    uint8_t identity[32] = {0};
+    BanderwagonElement decoded_identity;
+    ASSERT_TRUE(bw_from_bytes_strict(identity, decoded_identity) && bw_eq(decoded_identity, bw_identity()),
+                "strict Banderwagon decoder accepts the canonical identity encoding");
+
+    uint8_t field_modulus[32];
+    limbs_to_big_endian(FP_MODULUS, field_modulus);
+    ASSERT_TRUE(!bw_from_bytes_strict(field_modulus, decoded),
+                "strict Banderwagon decoder rejects non-canonical x encoding");
+
+    bool off_curve_rejected = false;
+    bool subgroup_rejected = false;
+    for (uint64_t candidate = 1; candidate < 4096 && (!off_curve_rejected || !subgroup_rejected); ++candidate) {
+        const Fp x = fp_from_u64(candidate);
+        Fp y;
+        uint8_t bytes[32];
+        fp_to_bytes(x, bytes);
+        const bool curve_point = bw_recover_y_from_x(x, y);
+        if (!curve_point) {
+            off_curve_rejected = !bw_from_bytes_strict(bytes, decoded);
+            continue;
+        }
+        const BanderwagonElement point = {{x, y, fp_mul(x, y), FP_ONE}};
+        if (!bw_subgroup_check(point)) subgroup_rejected = !bw_from_bytes_strict(bytes, decoded);
+    }
+    ASSERT_TRUE(off_curve_rejected, "strict Banderwagon decoder rejects x values with no curve point");
+    ASSERT_TRUE(subgroup_rejected, "strict Banderwagon decoder rejects valid-curve non-subgroup points");
+}
+
 void test_crs_loading() {
     crs::CRSPoints crs_pts;
     crs::load_crs(crs_pts);
@@ -255,6 +350,8 @@ int main() {
     test_associativity();
     test_banderwagon_equality();
     test_banderwagon_serialization();
+    test_strict_scalar_decoding();
+    test_strict_banderwagon_decoding();
     test_crs_loading();
     test_scalar_distributivity();
 

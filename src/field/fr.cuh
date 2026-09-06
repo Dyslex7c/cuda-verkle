@@ -284,6 +284,35 @@ __device__ __host__ inline Fr fr_from_u64(uint64_t val) {
     return fr_from_raw(raw);
 }
 
+// Decode a 32-byte big-endian scalar without reduction. Inputs equal to or
+// above the subgroup order are rejected rather than silently mapped modulo it.
+__device__ __host__ inline bool fr_from_bytes_strict(const uint8_t in[32], Fr& out) {
+    uint32_t raw[8];
+    for (int i = 0; i < 8; ++i) {
+        const int offset = (7 - i) * 4;
+        raw[i] = (static_cast<uint32_t>(in[offset]) << 24) |
+                 (static_cast<uint32_t>(in[offset + 1]) << 16) |
+                 (static_cast<uint32_t>(in[offset + 2]) << 8) |
+                 static_cast<uint32_t>(in[offset + 3]);
+    }
+    if (fr_cmp(raw, FR_MODULUS) >= 0) return false;
+    out = fr_from_raw(raw);
+    return true;
+}
+
+// Encode a scalar as its canonical 32-byte big-endian representation.
+__device__ __host__ inline void fr_to_bytes(const Fr& value, uint8_t out[32]) {
+    uint32_t raw[8];
+    fr_to_raw(value, raw);
+    for (int i = 0; i < 8; ++i) {
+        const uint32_t limb = raw[7 - i];
+        out[i * 4] = static_cast<uint8_t>(limb >> 24);
+        out[i * 4 + 1] = static_cast<uint8_t>(limb >> 16);
+        out[i * 4 + 2] = static_cast<uint8_t>(limb >> 8);
+        out[i * 4 + 3] = static_cast<uint8_t>(limb);
+    }
+}
+
 __device__ __host__ inline Fr fr_pow(Fr base, const uint32_t exp[8]) {
     Fr res = FR_ONE;
     for (int i = 7; i >= 0; --i) {

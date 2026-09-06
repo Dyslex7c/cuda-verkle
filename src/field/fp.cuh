@@ -285,6 +285,36 @@ __device__ __host__ inline Fp fp_from_u64(uint64_t val) {
     return fp_from_raw(raw);
 }
 
+// Decode a 32-byte big-endian field element without modular reduction.
+// This is the safe boundary API for encoded values: unlike fp_from_raw(), it
+// rejects values outside the canonical interval [0, p).
+__device__ __host__ inline bool fp_from_bytes_strict(const uint8_t in[32], Fp& out) {
+    uint32_t raw[8];
+    for (int i = 0; i < 8; ++i) {
+        const int offset = (7 - i) * 4;
+        raw[i] = (static_cast<uint32_t>(in[offset]) << 24) |
+                 (static_cast<uint32_t>(in[offset + 1]) << 16) |
+                 (static_cast<uint32_t>(in[offset + 2]) << 8) |
+                 static_cast<uint32_t>(in[offset + 3]);
+    }
+    if (fp_cmp(raw, FP_MODULUS) >= 0) return false;
+    out = fp_from_raw(raw);
+    return true;
+}
+
+// Encode a field element as its canonical 32-byte big-endian representation.
+__device__ __host__ inline void fp_to_bytes(const Fp& value, uint8_t out[32]) {
+    uint32_t raw[8];
+    fp_to_raw(value, raw);
+    for (int i = 0; i < 8; ++i) {
+        const uint32_t limb = raw[7 - i];
+        out[i * 4] = static_cast<uint8_t>(limb >> 24);
+        out[i * 4 + 1] = static_cast<uint8_t>(limb >> 16);
+        out[i * 4 + 2] = static_cast<uint8_t>(limb >> 8);
+        out[i * 4 + 3] = static_cast<uint8_t>(limb);
+    }
+}
+
 __device__ __host__ inline Fp fp_pow(Fp base, const uint32_t exp[8]) {
     Fp res = FP_ONE;
     for (int i = 7; i >= 0; --i) {
@@ -296,6 +326,56 @@ __device__ __host__ inline Fp fp_pow(Fp base, const uint32_t exp[8]) {
         }
     }
     return res;
+}
+
+// Square root in Fp using Tonelli-Shanks. The BLS12-381 scalar field has
+// p - 1 = q * 2^32 with q odd; 5 is a fixed quadratic non-residue. On
+// success, `out` is one of the two roots. This is variable-time and intended
+// for public decoding/validation, not secret-scalar operations.
+__device__ __host__ inline bool fp_sqrt(const Fp& value, Fp& out) {
+    if (fp_is_zero(value)) {
+        out = FP_ZERO;
+        return true;
+    }
+
+    static constexpr uint32_t LEGENDRE_EXP[8] = {
+        0x80000000, 0x7fffffff, 0x7fff2dff, 0xa9ded201,
+        0x04d0ec02, 0x199cec04, 0x94cebea4, 0x39f6d3a9
+    };
+    static constexpr uint32_t Q[8] = {
+        0xffffffff, 0xfffe5bfe, 0x53bda402, 0x09a1d805,
+        0x3339d808, 0x299d7d48, 0x73eda753, 0x00000000
+    };
+    static constexpr uint32_t Q_PLUS_ONE_OVER_TWO[8] = {
+        0x80000000, 0x7fff2dff, 0xa9ded201, 0x04d0ec02,
+        0x199cec04, 0x94cebea4, 0x39f6d3a9, 0x00000000
+    };
+
+    if (!fp_eq(fp_pow(value, LEGENDRE_EXP), FP_ONE)) return false;
+
+    Fp c = fp_pow(fp_from_u64(5), Q);
+    Fp t = fp_pow(value, Q);
+    Fp root = fp_pow(value, Q_PLUS_ONE_OVER_TWO);
+    int m = 32;
+
+    while (!fp_eq(t, FP_ONE)) {
+        int i = 1;
+        Fp t_power = fp_sqr(t);
+        while (i < m && !fp_eq(t_power, FP_ONE)) {
+            t_power = fp_sqr(t_power);
+            ++i;
+        }
+        if (i == m) return false; // Defensive: should be unreachable after Legendre validation.
+
+        Fp b = c;
+        for (int j = 0; j < m - i - 1; ++j) b = fp_sqr(b);
+        root = fp_mul(root, b);
+        c = fp_sqr(b);
+        t = fp_mul(t, c);
+        m = i;
+    }
+    out = root;
+    return true;
 }
 
 __device__ __host__ inline Fp fp_inv(const Fp& a) {
