@@ -1,0 +1,37 @@
+{
+  "description": "Depth-2 EIP-6800 group_to_scalar_field tree vector from rust-verkle",
+  "tree_depth": 2,
+  "width": 256,
+  "test_cases": [
+    {
+      "name": "sparse_cross_branch_updates",
+      "updates": [
+        {
+          "index": 0,
+          "new_value": "09055074684249c7b5d7bf2dda5bb6a695b51d3a9e682b96d287e3566991e170"
+        },
+        {
+          "index": 255,
+          "new_value": "164a667d06d1789d030378ce28810c3956447850dabed7ec7eb57d35c1ba202c"
+        },
+        {
+          "index": 256,
+          "new_value": "190e39d05c5e0b86c0a2dc1a94cfe2009b8ed9939900ecfe9c31feea490b0447"
+        },
+        {
+          "index": 257,
+          "new_value": "0fec8f786b00d543872680c54df42c55c7d9580e4e311614e87540c05a0b9701"
+        },
+        {
+          "index": 4451,
+          "new_value": "1a4a96954bc62ef887051ddc2a218b809af97f2836f1934fbe44be4f4b8290ff"
+        },
+        {
+          "index": 65535,
+          "new_value": "12601ad7e35717b205e26fc638674b6b6a58b168f4e2aa9399cf4dfc95b5ca8c"
+        }
+      ],
+      "expected_root": "3a82fda9f292b2edeefc9343a00a55f51236b2ad4bbc52ae1e885283fb8fe19e"
+    }
+  ]
+}

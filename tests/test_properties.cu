@@ -162,19 +162,15 @@ void test_malformed_input_handling() {
                 "MSM rejects zero and negative lengths without dereferencing inputs");
     ASSERT_TRUE(bw_eq({width}, {over_width}), "MSM clamps oversized public lengths to CRS width");
 
-    VerkleTree tree;
-    tree.init(1);
-    tree.set_leaves(values, MSM_SIZE);
-    const PointExtended original_root = tree.root.point;
-    const LeafUpdate invalid_updates[] = {
-        {-1, fr_from_u64(7)},
-        {MSM_SIZE, fr_from_u64(9)},
-    };
-    tree.apply_updates_incremental(invalid_updates, 2);
-    ASSERT_TRUE(bw_eq({original_root}, {tree.root.point}), "tree ignores out-of-range incremental updates");
-    tree.set_leaves(nullptr, 0);
-    ASSERT_TRUE(point_is_identity(tree.root.point), "tree accepts an empty leaf replacement and clears old values");
-    tree.cleanup();
+    Eip6800StateTree tree;
+    VerkleKey tree_key{};
+    VerkleValue tree_value{};
+    tree_value[0] = 1;
+    tree.set(tree_key, tree_value);
+    const PointExtended original_root = tree.root();
+    tree.erase(VerkleKey{});
+    ASSERT_TRUE(!point_is_identity(original_root) && point_is_identity(tree.root()),
+                "state tree erase restores an empty root without retaining stale state");
 
     uint32_t limbs[8];
     bool bad_hex_rejected = false;

@@ -1,0 +1,25 @@
+{
+  "description": "EIP-6800 group_to_scalar_field vectors from rust-verkle map_to_scalar_field",
+  "test_cases": [
+    {
+      "name": "identity",
+      "point": "0000000000000000000000000000000000000000000000000000000000000000",
+      "scalar": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "name": "crs_g0",
+      "point": "01587ad1336675eb912550ec2a28eb8923b824b490dd2ba82e48f14590a298a0",
+      "scalar": "0a7b40d2e7572f4a6acc315cf49e637028f6bb10e4fa419b77067abaafdb1a4f"
+    },
+    {
+      "name": "crs_g0_plus_g1",
+      "point": "4d847c22387ef6dba7183c077c6327f94526a11e401325e4fb438cb1a6174657",
+      "scalar": "0137429750a45732ad89600faed6a16ee8036bf306b1ec0949c401521d0a2094"
+    },
+    {
+      "name": "random_commitment",
+      "point": "10eff558af7e31e4590820383ef0976622aeb8c165eacfaf47cacd430bc507cc",
+      "scalar": "06ddc784dec22c1aed211e0b6bb5454743c73ec979f20a476f97c51a38a38326"
+    }
+  ]
+}

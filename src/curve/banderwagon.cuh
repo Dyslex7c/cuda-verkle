@@ -148,3 +148,29 @@ __device__ __host__ inline bool bw_from_bytes_strict(const uint8_t in[32], Bande
     out = candidate;
     return true;
 }
+
+// EIP-6800 group_to_scalar_field mapping. For a non-identity Banderwagon
+// element, map_to_base_field is the affine x / y ratio; its canonical Fp
+// integer is then reduced modulo the Bandersnatch scalar modulus. This is
+// intentionally different from Banderwagon's compressed point encoding.
+//
+// A canonical Fp value is less than five times Fr, so at most four reductions
+// are needed below. This function is variable-time and is only for public
+// tree/commitment values.
+__device__ __host__ inline Fr bw_map_to_scalar_field(const BanderwagonElement& e) {
+    const PointAffine affine = point_to_affine(e.point);
+    if (fp_is_zero(affine.x)) return FR_ZERO; // Includes the identity equivalence class.
+
+    const Fp mapped = fp_mul(affine.x, fp_inv(affine.y));
+    uint32_t raw[8];
+    fp_to_raw(mapped, raw);
+    for (int reduction = 0; reduction < 4 && fr_cmp(raw, FR_MODULUS) >= 0; ++reduction) {
+        uint64_t borrow = 0;
+        for (int limb = 0; limb < 8; ++limb) {
+            const uint64_t difference = static_cast<uint64_t>(raw[limb]) - FR_MODULUS[limb] - borrow;
+            raw[limb] = static_cast<uint32_t>(difference);
+            borrow = (difference >> 63) & 1;
+        }
+    }
+    return fr_from_raw(raw);
+}

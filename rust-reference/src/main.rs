@@ -91,6 +91,34 @@ struct TreeTestCase {
     expected_root: String,
 }
 
+#[derive(Serialize)]
+struct GroupToScalarTestVectors {
+    description: String,
+    test_cases: Vec<GroupToScalarTestCase>,
+}
+
+#[derive(Serialize)]
+struct GroupToScalarTestCase {
+    name: String,
+    point: String,
+    scalar: String,
+}
+
+#[derive(Serialize)]
+struct TreeDepth2TestVectors {
+    description: String,
+    tree_depth: usize,
+    width: usize,
+    test_cases: Vec<TreeDepth2TestCase>,
+}
+
+#[derive(Serialize)]
+struct TreeDepth2TestCase {
+    name: String,
+    updates: Vec<Update>,
+    expected_root: String,
+}
+
 fn fq_to_hex(f: &Fq) -> String {
     let raw = f.into_bigint().to_bytes_be();
     assert!(raw.len() <= 32, "Fq does not fit in 32 bytes");
@@ -314,6 +342,60 @@ fn generate_tree_tests(rng: &mut StdRng) -> TreeTestVectors {
     }
 }
 
+fn generate_group_to_scalar_tests(rng: &mut StdRng) -> GroupToScalarTestVectors {
+    let crs = CRS::default();
+    let zero_scalars = vec![Fr::zero(); 256];
+    let identity = multi_scalar_mul(&crs.G[..256], &zero_scalars);
+    let generator = crs.G[0];
+    let sum = generator + crs.G[1];
+    let random_scalars: Vec<Fr> = (0..256).map(|_| Fr::rand(rng)).collect();
+    let random_commitment = multi_scalar_mul(&crs.G[..256], &random_scalars);
+    let points = [
+        ("identity", identity),
+        ("crs_g0", generator),
+        ("crs_g0_plus_g1", sum),
+        ("random_commitment", random_commitment),
+    ];
+
+    GroupToScalarTestVectors {
+        description: "EIP-6800 group_to_scalar_field vectors from rust-verkle map_to_scalar_field".into(),
+        test_cases: points.into_iter().map(|(name, point)| GroupToScalarTestCase {
+            name: name.into(),
+            point: hex::encode(point.to_bytes()),
+            scalar: fr_to_hex(&point.map_to_scalar_field()),
+        }).collect(),
+    }
+}
+
+fn generate_depth2_tree_tests(rng: &mut StdRng) -> TreeDepth2TestVectors {
+    let crs = CRS::default();
+    let mut leaves = vec![Fr::zero(); 256 * 256];
+    let indices = [0usize, 255, 256, 257, 17 * 256 + 99, 255 * 256 + 255];
+    let updates: Vec<Update> = indices.into_iter().map(|index| {
+        let new_value = Fr::rand(rng);
+        leaves[index] = new_value;
+        Update { index, new_value: fr_to_hex(&new_value) }
+    }).collect();
+    let l1_commitments: Vec<Element> = leaves.chunks(256)
+        .map(|children| multi_scalar_mul(&crs.G[..256], children))
+        .collect();
+    let l1_scalars: Vec<Fr> = l1_commitments.iter()
+        .map(Element::map_to_scalar_field)
+        .collect();
+    let root = multi_scalar_mul(&crs.G[..256], &l1_scalars);
+
+    TreeDepth2TestVectors {
+        description: "Depth-2 EIP-6800 group_to_scalar_field tree vector from rust-verkle".into(),
+        tree_depth: 2,
+        width: 256,
+        test_cases: vec![TreeDepth2TestCase {
+            name: "sparse_cross_branch_updates".into(),
+            updates,
+            expected_root: hex::encode(root.to_bytes()),
+        }],
+    }
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     let subcommand = if args.len() > 1 { &args[1] } else { "generate" };
@@ -351,6 +433,16 @@ fn main() {
         let tree_json = serde_json::to_string_pretty(&tree_tests).unwrap();
         fs::write(out_dir.join("tree_test_vectors.json"), tree_json).unwrap();
         eprintln!("Generated tree_test_vectors.json");
+
+        let group_to_scalar_tests = generate_group_to_scalar_tests(&mut rng);
+        let group_to_scalar_json = serde_json::to_string_pretty(&group_to_scalar_tests).unwrap();
+        fs::write(out_dir.join("group_to_scalar_test_vectors.json"), group_to_scalar_json).unwrap();
+        eprintln!("Generated group_to_scalar_test_vectors.json");
+
+        let depth2_tree_tests = generate_depth2_tree_tests(&mut rng);
+        let depth2_tree_json = serde_json::to_string_pretty(&depth2_tree_tests).unwrap();
+        fs::write(out_dir.join("tree_depth2_test_vectors.json"), depth2_tree_json).unwrap();
+        eprintln!("Generated tree_depth2_test_vectors.json");
 
         eprintln!("All test vectors generated successfully in ../test_vectors/");
     } else {

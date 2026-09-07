@@ -2,11 +2,11 @@
 
 A C++/CUDA research implementation of Pedersen vector commitments over the Banderwagon group, targeting Ethereum's Verkle tree proposal ([EIP-6800](https://eips.ethereum.org/EIPS/eip-6800)).
 
-Covers the core commitment stack: Montgomery field arithmetic → twisted Edwards curve operations → Pippenger multi-scalar multiplication → Pedersen commitments → incremental tree recommitment. All arithmetic is written to compile on both CPU (any C++17 compiler) and GPU (nvcc with PTX intrinsics). The tree remains a simulation and this is not a complete EIP-6800 implementation or production-ready cryptographic software.
+Covers the core commitment stack: Montgomery field arithmetic → twisted Edwards curve operations → Pippenger multi-scalar multiplication → Pedersen commitments → an EIP-6800 sparse key/value state tree. The tree implements extension/suffix nodes, absent-vs-zero leaf encoding, recursive main-tree commitments, EIP-6800 `group_to_scalar_field`, and Pedersen state-key derivation. It remains experimental cryptographic software, not production-ready.
 
 Serialized public inputs must use the strict decoding APIs: `fr_from_bytes_strict` accepts only canonical 32-byte big-endian scalars, while `bw_from_bytes_strict` additionally recovers the curve point and rejects off-curve and non-subgroup Banderwagon encodings. These validation routines are variable-time and must not be used with secret inputs.
 
-> **Status:** 87 host self-tests pass. A windowed CUDA Pippenger MSM with batched, stream-aware execution, GPU integration tests, and CUDA-event benchmarking is included; NVIDIA hardware validation remains next.
+> **Status:** Host unit, property, differential, and EIP-6800 state-tree tests pass. A windowed CUDA Pippenger MSM with batched, stream-aware execution, GPU integration tests, and CUDA-event benchmarking is included; NVIDIA hardware validation remains next.
 
 ---
 
@@ -25,12 +25,13 @@ Any C++17 compiler (`clang++` or `g++`) works directly:
 ```bash
 git clone <this-repo> && cd cuda-verkle
 
-# Run all 87 host unit and integration tests
+# Run host unit, property, differential, and state-tree tests
 c++ -std=c++17 -x c++ -O2 -I src -o test_field tests/test_field.cu && ./test_field
 c++ -std=c++17 -x c++ -O2 -I src -o test_curve tests/test_curve.cu && ./test_curve
 c++ -std=c++17 -x c++ -O2 -I src -o test_msm tests/test_msm.cu src/msm/msm_kernel.cu && ./test_msm
 c++ -std=c++17 -x c++ -O2 -I src -o test_commitment tests/test_commitment.cu src/msm/msm_kernel.cu src/commitment/pedersen.cu && ./test_commitment
 c++ -std=c++17 -x c++ -O2 -I src -o test_tree tests/test_tree.cu src/msm/msm_kernel.cu && ./test_tree
+c++ -std=c++17 -x c++ -O2 -I src -o test_properties tests/test_properties.cu src/msm/msm_kernel.cu && ./test_properties
 
 # Run CPU benchmarks
 c++ -std=c++17 -x c++ -O2 -I src -o bench src/benchmark/bench_msm.cu src/msm/msm_kernel.cu && ./bench

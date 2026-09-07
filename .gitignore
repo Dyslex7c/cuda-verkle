@@ -33,6 +33,8 @@
 !/test_vectors/curve_test_vectors.json
 !/test_vectors/commitment_test_vectors.json
 !/test_vectors/tree_test_vectors.json
+!/test_vectors/group_to_scalar_test_vectors.json
+!/test_vectors/tree_depth2_test_vectors.json
 
 # Local editor, OS, and environment files
 .DS_Store
