@@ -4,6 +4,8 @@ A C++/CUDA research implementation of Pedersen vector commitments over the Bande
 
 Covers the core commitment stack: Montgomery field arithmetic → twisted Edwards curve operations → Pippenger multi-scalar multiplication → Pedersen commitments → an EIP-6800 sparse key/value state tree. The tree implements extension/suffix nodes, absent-vs-zero leaf encoding, recursive main-tree commitments, EIP-6800 `group_to_scalar_field`, and Pedersen state-key derivation. It remains experimental cryptographic software, not production-ready.
 
+The state tree exposes `set`, `get`, `erase`, `root`, `serialize`/`deserialize`, and `save`/`load`. Its versioned persistence format stores canonical, lexicographically ordered key/value records and reconstructs the branch/extension topology on load; malformed or non-canonical snapshots are rejected without modifying the loaded tree.
+
 Serialized public inputs must use the strict decoding APIs: `fr_from_bytes_strict` accepts only canonical 32-byte big-endian scalars, while `bw_from_bytes_strict` additionally recovers the curve point and rejects off-curve and non-subgroup Banderwagon encodings. These validation routines are variable-time and must not be used with secret inputs.
 
 > **Status:** Host unit, property, differential, and EIP-6800 state-tree tests pass. A windowed CUDA Pippenger MSM with batched, stream-aware execution, GPU integration tests, and CUDA-event benchmarking is included; NVIDIA hardware validation remains next.

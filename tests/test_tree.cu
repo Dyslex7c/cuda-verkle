@@ -31,13 +31,54 @@ void test_determinism_and_branching() {
     const VerkleKey a = key(0x11, 0x22, 0x01);
     const VerkleKey b = key(0x11, 0x22, 0xfe);
     const VerkleKey c = key(0x99, 0x01, 0x07);
+    const VerkleKey d = key(0x11, 0x23, 0x07);
     Eip6800StateTree left, right;
-    left.set(a, value(7)); left.set(b, value(8)); left.set(c, value(9));
-    right.set(c, value(9)); right.set(b, value(8)); right.set(a, value(7));
+    left.set(a, value(7)); left.set(b, value(8)); left.set(c, value(9)); left.set(d, value(10));
+    right.set(d, value(10)); right.set(c, value(9)); right.set(b, value(8)); right.set(a, value(7));
     CHECK(same(left.root(), right.root()), "root is independent of insertion order across stems and suffixes");
     const PointExtended before = left.root();
     left.set(b, value(42));
     CHECK(!same(before, left.root()), "updating a present value changes the root");
+
+    const VerkleNode& root = left.root_node();
+    CHECK(root.kind == VerkleNode::Kind::branch && root.children[0x11] && root.children[0x99],
+          "root stores explicit branch children for divergent first stem bytes");
+    const VerkleNode* branch = root.children[0x11].get();
+    CHECK(branch->kind == VerkleNode::Kind::branch && branch->children[0x22] && branch->children[0x23],
+          "shared-prefix stems split into an explicit intermediate branch node");
+    CHECK(branch->children[0x22]->kind == VerkleNode::Kind::extension && branch->children[0x22]->suffixes.size() == 2,
+          "same-stem keys share one explicit extension node with suffix slots");
+}
+
+void test_get_erase_and_persistence() {
+    const VerkleKey a = key(0x11, 0x22, 0x01);
+    const VerkleKey b = key(0x11, 0x22, 0x02);
+    const VerkleKey c = key(0xee, 0xff, 0x03);
+    Eip6800StateTree original;
+    original.set(a, value(1)); original.set(b, VerkleValue{}); original.set(c, value(3));
+    VerkleValue read{};
+    CHECK(original.get(b, read) && read == VerkleValue{}, "get returns a present all-zero suffix value");
+    const PointExtended expected_root = original.root();
+    const std::vector<uint8_t> snapshot = original.serialize();
+    Eip6800StateTree restored;
+    CHECK(Eip6800StateTree::deserialize(snapshot, restored) && restored.size() == 3 && same(expected_root, restored.root()),
+          "canonical persisted state reloads with identical root and key count");
+    const std::string path = "/tmp/cuda_verkle_state_tree_test.vkl";
+    Eip6800StateTree file_restored;
+    CHECK(original.save(path) && Eip6800StateTree::load(path, file_restored) && same(expected_root, file_restored.root()),
+          "state tree saves and loads canonical persistent snapshots");
+    std::remove(path.c_str());
+    CHECK(restored.erase(b) && !restored.contains(b) && restored.contains(a) && restored.contains(c),
+          "erase removes one suffix while preserving sibling extension and branch nodes");
+    const PointExtended root_before_failed_load = restored.root();
+
+    std::vector<uint8_t> malformed = snapshot;
+    malformed[0] = 'X';
+    CHECK(!Eip6800StateTree::deserialize(malformed, restored), "persistence loader rejects invalid magic");
+    CHECK(same(root_before_failed_load, restored.root()), "failed persistence load leaves existing tree unchanged");
+    malformed = snapshot;
+    if (malformed.size() >= 16 + 128) std::swap(malformed[16 + 31], malformed[16 + 64 + 31]);
+    CHECK(!Eip6800StateTree::deserialize(malformed, restored), "persistence loader rejects non-canonical record ordering");
 }
 
 void test_key_derivation_and_bounds() {
@@ -66,7 +107,7 @@ void test_rust_group_mapping_vectors() {
 
 int main() {
     std::printf("EIP-6800 State Tree Tests\n");
-    test_empty_and_zero_value(); test_determinism_and_branching(); test_key_derivation_and_bounds(); test_rust_group_mapping_vectors();
+    test_empty_and_zero_value(); test_determinism_and_branching(); test_get_erase_and_persistence(); test_key_derivation_and_bounds(); test_rust_group_mapping_vectors();
     std::printf("\nResults: %d passed, %d failed\n", passed, failed);
     return failed ? 1 : 0;
 }
