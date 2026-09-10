@@ -2,6 +2,9 @@ use ark_ed_on_bls12_381_bandersnatch::{Fq, Fr};
 use ark_ff::{BigInteger, Field, PrimeField, UniformRand, Zero, One};
 use banderwagon::{multi_scalar_mul, Element};
 use ipa_multipoint::crs::CRS;
+use ipa_multipoint::ipa;
+use ipa_multipoint::math_utils::{inner_product, powers_of};
+use ipa_multipoint::transcript::Transcript;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use serde::Serialize;
@@ -118,6 +121,9 @@ struct TreeDepth2TestCase {
     updates: Vec<Update>,
     expected_root: String,
 }
+
+#[derive(Serialize)]
+struct IpaTestVectors { values: Vec<String>, input_point: String, output_point: String, commitment: String, l: Vec<String>, r: Vec<String>, final_scalar: String }
 
 fn fq_to_hex(f: &Fq) -> String {
     let raw = f.into_bigint().to_bytes_be();
@@ -396,6 +402,18 @@ fn generate_depth2_tree_tests(rng: &mut StdRng) -> TreeDepth2TestVectors {
     }
 }
 
+fn generate_ipa_tests() -> IpaTestVectors {
+    let crs = CRS::default();
+    let values: Vec<Fr> = (0..256).map(|i| Fr::from(((i + 1) * 17) as u64)).collect();
+    let input_point = Fr::from(7u64);
+    let b = powers_of(input_point, 256);
+    let output_point = inner_product(&values, &b);
+    let commitment = multi_scalar_mul(&crs.G[..256], &values);
+    let mut transcript = Transcript::new(b"ip_no_zk");
+    let proof = ipa::create(&mut transcript, crs, values.clone(), commitment, b, input_point);
+    IpaTestVectors { values: values.iter().map(fr_to_hex).collect(), input_point: fr_to_hex(&input_point), output_point: fr_to_hex(&output_point), commitment: hex::encode(commitment.to_bytes()), l: proof.L_vec.iter().map(|p| hex::encode(p.to_bytes())).collect(), r: proof.R_vec.iter().map(|p| hex::encode(p.to_bytes())).collect(), final_scalar: fr_to_hex(&proof.a) }
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     let subcommand = if args.len() > 1 { &args[1] } else { "generate" };
@@ -443,6 +461,10 @@ fn main() {
         let depth2_tree_json = serde_json::to_string_pretty(&depth2_tree_tests).unwrap();
         fs::write(out_dir.join("tree_depth2_test_vectors.json"), depth2_tree_json).unwrap();
         eprintln!("Generated tree_depth2_test_vectors.json");
+
+        let ipa_json = serde_json::to_string_pretty(&generate_ipa_tests()).unwrap();
+        fs::write(out_dir.join("ipa_test_vectors.json"), ipa_json).unwrap();
+        eprintln!("Generated ipa_test_vectors.json");
 
         eprintln!("All test vectors generated successfully in ../test_vectors/");
     } else {

@@ -14,7 +14,7 @@ endif()
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -lineinfo")
 
 option(ENABLE_PHASE2 "Build MSM and Pedersen commitment support" ON)
-option(ENABLE_PHASE3 "Build the simulated tree support" ON)
+option(ENABLE_PHASE3 "Build Verkle state-tree support" ON)
 option(ENABLE_PHASE4 "Enable Phase 4: Benchmarks" OFF)
 
 # The tree calls the MSM implementation.  Keep the options usable when callers
@@ -76,6 +76,11 @@ if(ENABLE_PHASE2)
     add_executable(test_properties tests/test_properties.cu)
     target_link_libraries(test_properties cuda_verkle_lib)
     add_test(NAME TestProperties COMMAND test_properties)
+
+    add_executable(test_ipa tests/test_ipa.cu)
+    target_link_libraries(test_ipa cuda_verkle_lib)
+    target_compile_definitions(test_ipa PRIVATE CUDA_VERKLE_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+    add_test(NAME TestIPA COMMAND test_ipa)
 
     add_executable(test_commitment tests/test_commitment.cu)
     target_link_libraries(test_commitment cuda_verkle_lib)
