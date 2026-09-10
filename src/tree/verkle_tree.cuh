@@ -166,9 +166,9 @@ private:
     std::unique_ptr<VerkleNode> root_;
     size_t size_ = 0;
 
-    static std::unique_ptr<VerkleNode> make_branch() { return std::unique_ptr<VerkleNode>(new VerkleNode(VerkleNode::Kind::branch)); }
+    static std::unique_ptr<VerkleNode> make_branch() { return std::make_unique<VerkleNode>(VerkleNode::Kind::branch); }
     static std::unique_ptr<VerkleNode> make_extension(const VerkleKey& key, const VerkleValue& value) {
-        std::unique_ptr<VerkleNode> node(new VerkleNode(VerkleNode::Kind::extension));
+        std::unique_ptr<VerkleNode> node = std::make_unique<VerkleNode>(VerkleNode::Kind::extension);
         for (int i = 0; i < 31; ++i) node->stem[i] = key[i];
         node->suffixes[key[31]] = value;
         return node;

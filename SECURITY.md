@@ -32,9 +32,14 @@ This applies to human contributors and automated/LLM-assisted workflows.
 5. Confirm documentation accurately describes the implementation’s security
    and verification status. Do not claim a GPU implementation, protocol
    compatibility, external audit, or production readiness without evidence.
-6. Run the available tests and report any tests that could not run, including
-   the reason (for example, unavailable CUDA hardware/toolkit or network).
-7. Review the final staged file list with `git status --short` and
+6. Require successful host tests, CUDA compilation, dependency review, secret
+   scanning, and Rust dependency vulnerability scanning in CI. Report any
+   unavailable checks, including the reason (for example, unavailable CUDA
+   hardware, toolkit, or network).
+7. Before any production-readiness claim, complete the independent audit gate
+   in [`docs/SECURITY_AUDIT_SCOPE.md`](docs/SECURITY_AUDIT_SCOPE.md), publish
+   its findings, and resolve all critical and high-severity issues.
+8. Review the final staged file list with `git status --short` and
    `git diff --cached --name-only` before pushing.
 
 Passing this checklist reduces accidental disclosure risk; it is not a

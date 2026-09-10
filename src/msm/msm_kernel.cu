@@ -406,4 +406,12 @@ MsmGpuStatus msm_gpu_context_destroy(MsmGpuContext& context) {
     clear_context(context);
     return status_from_cuda(first_error);
 }
+
+MsmGpuWorkspace::~MsmGpuWorkspace() {
+    (void)msm_gpu_workspace_destroy(*this);
+}
+
+MsmGpuContext::~MsmGpuContext() {
+    (void)msm_gpu_context_destroy(*this);
+}
 #endif

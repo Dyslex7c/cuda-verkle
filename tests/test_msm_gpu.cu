@@ -7,6 +7,7 @@
 #include "../src/constants/crs_points.cuh"
 #include "../src/msm/msm_kernel.cuh"
 #include "../src/curve/banderwagon.cuh"
+#include "../src/util/cuda_raii.cuh"
 
 namespace {
 
@@ -103,14 +104,14 @@ void test_gpu_batch_msm(MsmGpuContext& context, const crs::CRSPoints& crs_points
 }
 
 void test_gpu_streamed_msm(MsmGpuContext& context, const crs::CRSPoints& crs_points) {
-    cudaStream_t streams[2] = {};
+    cuda_verkle::CudaStream streams[2];
     MsmGpuWorkspace workspaces[2];
     Fr scalars[2][MSM_SIZE];
     PointExtended results[2];
     bool setup_ok = true;
 
     for (int stream_index = 0; stream_index < 2; ++stream_index) {
-        if (cudaStreamCreateWithFlags(&streams[stream_index], cudaStreamNonBlocking) != cudaSuccess ||
+        if (streams[stream_index].create(cudaStreamNonBlocking) != cudaSuccess ||
             msm_gpu_workspace_init(workspaces[stream_index], 1) != MsmGpuStatus::success) {
             setup_ok = false;
             break;
@@ -123,13 +124,13 @@ void test_gpu_streamed_msm(MsmGpuContext& context, const crs::CRSPoints& crs_poi
     ASSERT_TRUE(setup_ok, "GPU stream workspaces initialize");
     if (setup_ok) {
         const MsmGpuStatus first = msm_gpu_compute_batch_async(
-            context, workspaces[0], scalars[0], 1, &results[0], streams[0]);
+            context, workspaces[0], scalars[0], 1, &results[0], streams[0].get());
         const MsmGpuStatus second = msm_gpu_compute_batch_async(
-            context, workspaces[1], scalars[1], 1, &results[1], streams[1]);
+            context, workspaces[1], scalars[1], 1, &results[1], streams[1].get());
         ASSERT_TRUE(first == MsmGpuStatus::success && second == MsmGpuStatus::success,
                     "GPU MSM batches enqueue on independent streams");
-        ASSERT_TRUE(msm_gpu_stream_synchronize(streams[0]) == MsmGpuStatus::success &&
-                        msm_gpu_stream_synchronize(streams[1]) == MsmGpuStatus::success,
+        ASSERT_TRUE(msm_gpu_stream_synchronize(streams[0].get()) == MsmGpuStatus::success &&
+                        msm_gpu_stream_synchronize(streams[1].get()) == MsmGpuStatus::success,
                     "GPU MSM streams synchronize");
         for (int stream_index = 0; stream_index < 2; ++stream_index) {
             PointExtended expected = msm_compute(
@@ -144,7 +145,6 @@ void test_gpu_streamed_msm(MsmGpuContext& context, const crs::CRSPoints& crs_poi
             ASSERT_TRUE(msm_gpu_workspace_destroy(workspaces[stream_index]) == MsmGpuStatus::success,
                         "GPU stream workspace is released");
         }
-        if (streams[stream_index] != nullptr) cudaStreamDestroy(streams[stream_index]);
     }
 }
 

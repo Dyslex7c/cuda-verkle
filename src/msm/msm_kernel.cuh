@@ -38,6 +38,13 @@ struct MsmGpuWorkspace {
     MsmGpuWorkspace& operator=(const MsmGpuWorkspace&) = delete;
     MsmGpuWorkspace(MsmGpuWorkspace&&) = delete;
     MsmGpuWorkspace& operator=(MsmGpuWorkspace&&) = delete;
+#ifdef __CUDACC__
+    // Best-effort cleanup for every exit path. Call msm_gpu_workspace_destroy
+    // explicitly when the caller needs to observe a CUDA cleanup error.
+    ~MsmGpuWorkspace();
+#else
+    ~MsmGpuWorkspace() = default;
+#endif
 };
 
 // Owns the GPU-resident fixed CRS plus a one-element default workspace for the
@@ -54,6 +61,13 @@ struct MsmGpuContext {
     MsmGpuContext& operator=(const MsmGpuContext&) = delete;
     MsmGpuContext(MsmGpuContext&&) = delete;
     MsmGpuContext& operator=(MsmGpuContext&&) = delete;
+#ifdef __CUDACC__
+    // Best-effort cleanup for the fixed CRS and default workspace. Call
+    // msm_gpu_context_destroy explicitly when cleanup status matters.
+    ~MsmGpuContext();
+#else
+    ~MsmGpuContext() = default;
+#endif
 };
 
 // Compute a multi-scalar multiplication result = sum(scalars[i] * points[i]) This is the CPU reference implementation used for correctness testing.

@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  host:
+    name: Host tests and Rust vectors
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Check locked Rust vector generator
+        run: cargo check --manifest-path rust-reference/Cargo.toml --locked
+      - name: Regenerate deterministic vectors without drift
+        run: |
+          cargo run --manifest-path rust-reference/Cargo.toml --locked --release -- generate
+          git diff --exit-code -- test_vectors
+      - name: Build and run host suites
+        run: |
+          set -euo pipefail
+          c++ -std=c++17 -x c++ -O2 -I src -o /tmp/test_field tests/test_field.cu
+          /tmp/test_field
+          c++ -std=c++17 -x c++ -O2 -I src -o /tmp/test_curve tests/test_curve.cu
+          /tmp/test_curve
+          c++ -std=c++17 -x c++ -O2 -I src -o /tmp/test_msm tests/test_msm.cu src/msm/msm_kernel.cu
+          /tmp/test_msm
+          c++ -std=c++17 -x c++ -O2 -I src -DCUDA_VERKLE_SOURCE_DIR=\"${GITHUB_WORKSPACE}\" -o /tmp/test_commitment tests/test_commitment.cu src/msm/msm_kernel.cu src/commitment/pedersen.cu
+          /tmp/test_commitment
+          c++ -std=c++17 -x c++ -O2 -I src -DCUDA_VERKLE_SOURCE_DIR=\"${GITHUB_WORKSPACE}\" -o /tmp/test_tree tests/test_tree.cu src/msm/msm_kernel.cu
+          /tmp/test_tree
+          c++ -std=c++17 -x c++ -O2 -I src -o /tmp/test_properties tests/test_properties.cu src/msm/msm_kernel.cu
+          /tmp/test_properties
+          c++ -std=c++17 -x c++ -O2 -I src -DCUDA_VERKLE_SOURCE_DIR=\"${GITHUB_WORKSPACE}\" -o /tmp/test_ipa tests/test_ipa.cu src/msm/msm_kernel.cu
+          /tmp/test_ipa
+
+  cuda-build:
+    name: CUDA container build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Compile CUDA targets in the pinned CUDA image
+        run: docker build --tag cuda-verkle-ci .
+
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@v4
