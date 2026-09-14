@@ -202,41 +202,9 @@ __device__ __host__ inline Fr fr_mul(const Fr& a, const Fr& b) {
 
     for (int i = 0; i < 8; ++i) {
         uint32_t ai = a.limbs[i];
-#ifdef __CUDA_ARCH__
-        // 1. t += a[i] * b
-        uint32_t carry1 = 0;
-        for (int j = 0; j < 8; ++j) {
-            uint32_t lo, hi;
-            asm("mad.lo.cc.u32 %0, %1, %2, %3;" : "=r"(lo) : "r"(ai), "r"(b.limbs[j]), "r"(t[j]));
-            asm("madc.hi.cc.u32 %0, %1, %2, 0;" : "=r"(hi) : "r"(ai), "r"(b.limbs[j]));
-            
-            asm("add.cc.u32 %0, %1, %2;" : "=r"(t[j]) : "r"(lo), "r"(carry1));
-            asm("addc.u32 %0, %1, 0;" : "=r"(carry1) : "r"(hi));
-        }
-        t[8] = carry1;
-
-        // 2. m = t[0] * n'
-        uint32_t m = t[0] * FR_INV;
-
-        // 3. t += m * n
-        uint32_t carry2 = 0;
-        for (int j = 0; j < 8; ++j) {
-            uint32_t lo, hi;
-            const uint32_t modulus_limb = fr_modulus_limb(j);
-            asm("mad.lo.cc.u32 %0, %1, %2, %3;" : "=r"(lo) : "r"(m), "r"(modulus_limb), "r"(t[j]));
-            asm("madc.hi.cc.u32 %0, %1, %2, 0;" : "=r"(hi) : "r"(m), "r"(modulus_limb));
-            
-            asm("add.cc.u32 %0, %1, %2;" : "=r"(t[j]) : "r"(lo), "r"(carry2));
-            asm("addc.u32 %0, %1, 0;" : "=r"(carry2) : "r"(hi));
-        }
-        asm("add.cc.u32 %0, %1, %2;" : "=r"(t[8]) : "r"(t[8]), "r"(carry2));
-        
-        // 4. shift right
-        for (int j = 0; j < 8; ++j) {
-            t[j] = t[j+1];
-        }
-        t[8] = 0;
-#else
+        // Portable implementation used on both host and device. The nvcc
+        // compiler generates efficient 32-bit multiply-add sequences from
+        // uint64_t arithmetic on sm_75 and later.
         uint64_t carry1 = 0;
         for (int j = 0; j < 8; ++j) {
             uint64_t sum = (uint64_t)t[j] + (uint64_t)ai * b.limbs[j] + carry1;
@@ -259,7 +227,6 @@ __device__ __host__ inline Fr fr_mul(const Fr& a, const Fr& b) {
             t[j] = t[j+1];
         }
         t[8] = 0;
-#endif
     }
 
     Fr res;
