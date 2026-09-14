@@ -95,7 +95,7 @@ void bench_msm_sparse() {
     crs::load_crs(crs_pts);
 
     Fr scalars[256];
-    for (int i = 0; i < 256; ++i) scalars[i] = FR_ZERO;
+    for (int i = 0; i < 256; ++i) scalars[i] = fr_zero();
     // only 10 non-zero entries
     for (int i = 0; i < 10; ++i) {
         scalars[i * 25] = fr_from_u64((uint64_t)(i + 1) * 999);

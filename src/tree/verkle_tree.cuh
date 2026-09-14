@@ -136,7 +136,7 @@ public:
     static bool pedersen_hash(const uint8_t* input, size_t length, uint8_t out[32]) {
         if ((!input && length != 0) || length > 255U * 16U) return false;
         Fr scalars[VERKLE_NODE_WIDTH];
-        for (int i = 0; i < VERKLE_NODE_WIDTH; ++i) scalars[i] = FR_ZERO;
+        for (int i = 0; i < VERKLE_NODE_WIDTH; ++i) scalars[i] = fr_zero();
         scalars[0] = fr_from_u64(2 + 256ULL * length);
         for (size_t chunk = 0; chunk < 255; ++chunk) {
             uint32_t raw[8] = {};
@@ -240,14 +240,14 @@ private:
     }
     PointExtended extension_commitment(const VerkleNode& node) const {
         Fr suffix_scalars[512];
-        for (int i = 0; i < 512; ++i) suffix_scalars[i] = FR_ZERO;
+        for (int i = 0; i < 512; ++i) suffix_scalars[i] = fr_zero();
         for (const auto& item : node.suffixes) {
             suffix_scalars[2 * item.first] = little_endian_scalar(item.second.data(), 16, true);
             suffix_scalars[2 * item.first + 1] = little_endian_scalar(item.second.data() + 16, 16, false);
         }
         Fr extension[VERKLE_NODE_WIDTH];
-        for (int i = 0; i < VERKLE_NODE_WIDTH; ++i) extension[i] = FR_ZERO;
-        extension[0] = FR_ONE;
+        for (int i = 0; i < VERKLE_NODE_WIDTH; ++i) extension[i] = fr_zero();
+        extension[0] = fr_one();
         extension[1] = little_endian_scalar(node.stem.data(), node.stem.size(), false);
         extension[2] = bw_map_to_scalar_field({commit(suffix_scalars)});
         extension[3] = bw_map_to_scalar_field({commit(suffix_scalars + VERKLE_NODE_WIDTH)});
@@ -264,7 +264,7 @@ private:
         if (!force_commitment && count == 1 && only->kind == VerkleNode::Kind::extension) return extension_commitment(*only);
         Fr children[VERKLE_NODE_WIDTH];
         for (int i = 0; i < VERKLE_NODE_WIDTH; ++i)
-            children[i] = node.children[i] ? node_scalar(*node.children[i], depth + 1) : FR_ZERO;
+            children[i] = node.children[i] ? node_scalar(*node.children[i], depth + 1) : fr_zero();
         return commit(children);
     }
     static void collect(const VerkleNode& node, std::vector<std::pair<VerkleKey, VerkleValue>>& out) {

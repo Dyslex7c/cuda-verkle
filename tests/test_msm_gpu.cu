@@ -33,7 +33,7 @@ bool gpu_matches_cpu(
 }
 
 void fill_zero(Fr scalars[MSM_SIZE]) {
-    for (int i = 0; i < MSM_SIZE; ++i) scalars[i] = FR_ZERO;
+    for (int i = 0; i < MSM_SIZE; ++i) scalars[i] = fr_zero();
 }
 
 void test_gpu_msm(MsmGpuContext& context, const crs::CRSPoints& crs_points) {

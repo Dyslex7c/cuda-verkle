@@ -383,7 +383,7 @@ MsmGpuStatus msm_gpu_compute(
     }
     Fr padded_scalars[MSM_SIZE];
     for (int i = 0; i < n; ++i) padded_scalars[i] = scalars[i];
-    for (int i = n; i < MSM_SIZE; ++i) padded_scalars[i] = FR_ZERO;
+    for (int i = n; i < MSM_SIZE; ++i) padded_scalars[i] = fr_zero();
     return msm_gpu_compute_batch(
         context, context.default_workspace, padded_scalars, 1, result);
 }

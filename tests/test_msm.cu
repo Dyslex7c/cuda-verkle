@@ -21,7 +21,7 @@ void test_msm_all_zeros() {
     crs::load_crs(crs_pts);
 
     Fr scalars[256];
-    for (int i = 0; i < 256; ++i) scalars[i] = FR_ZERO;
+    for (int i = 0; i < 256; ++i) scalars[i] = fr_zero();
 
     PointExtended result = msm_compute(scalars, crs_pts.x, crs_pts.y, 256);
     ASSERT_TRUE(point_is_identity(result), "MSM(all zeros) = identity");
@@ -32,7 +32,7 @@ void test_msm_single_one() {
     crs::load_crs(crs_pts);
 
     Fr scalars[256];
-    for (int i = 0; i < 256; ++i) scalars[i] = FR_ZERO;
+    for (int i = 0; i < 256; ++i) scalars[i] = fr_zero();
     scalars[0] = fr_from_u64(1);
 
     PointExtended result = msm_compute(scalars, crs_pts.x, crs_pts.y, 256);
@@ -49,7 +49,7 @@ void test_msm_single_at_index() {
     crs::load_crs(crs_pts);
 
     Fr scalars[256];
-    for (int i = 0; i < 256; ++i) scalars[i] = FR_ZERO;
+    for (int i = 0; i < 256; ++i) scalars[i] = fr_zero();
     scalars[5] = fr_from_u64(1);
 
     PointExtended result = msm_compute(scalars, crs_pts.x, crs_pts.y, 256);
@@ -66,7 +66,7 @@ void test_msm_scalar_two() {
     crs::load_crs(crs_pts);
 
     Fr scalars[256];
-    for (int i = 0; i < 256; ++i) scalars[i] = FR_ZERO;
+    for (int i = 0; i < 256; ++i) scalars[i] = fr_zero();
     scalars[0] = fr_from_u64(2);
 
     PointExtended result = msm_compute(scalars, crs_pts.x, crs_pts.y, 256);
@@ -86,7 +86,7 @@ void test_msm_pippenger_vs_naive() {
 
     // Test with a few non-zero scalars
     Fr scalars[256];
-    for (int i = 0; i < 256; ++i) scalars[i] = FR_ZERO;
+    for (int i = 0; i < 256; ++i) scalars[i] = fr_zero();
     scalars[0] = fr_from_u64(17);
     scalars[1] = fr_from_u64(42);
     scalars[3] = fr_from_u64(100);
@@ -183,7 +183,7 @@ void test_gpu_pippenger_window_model() {
     Fr scalars[MSM_SIZE];
     for (int i = 0; i < MSM_SIZE; ++i) {
         // Values near Fr's modulus exercise the highest Pippenger windows.
-        scalars[i] = (i & 1) ? fr_sub(FR_ZERO, fr_from_u64(i + 1))
+        scalars[i] = (i & 1) ? fr_sub(fr_zero(), fr_from_u64(i + 1))
                              : fr_from_u64(static_cast<uint64_t>(i + 1) * 1234567ULL);
     }
 

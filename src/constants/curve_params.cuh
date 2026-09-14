@@ -11,11 +11,13 @@ namespace cuda_verkle {
 // canonical constants themselves live in curve/bandersnatch.cuh; copying them
 // here avoids maintaining a second source of truth.
 __device__ __host__ inline void get_coeff_a(uint32_t out[8]) {
-    for (int i = 0; i < 8; ++i) out[i] = COEFF_A_MONT_LIMBS[i];
+    const Fp coefficient = curve_coeff_a();
+    for (int i = 0; i < 8; ++i) out[i] = coefficient.limbs[i];
 }
 
 __device__ __host__ inline void get_coeff_d(uint32_t out[8]) {
-    for (int i = 0; i < 8; ++i) out[i] = COEFF_D_MONT_LIMBS[i];
+    const Fp coefficient = curve_coeff_d();
+    for (int i = 0; i < 8; ++i) out[i] = coefficient.limbs[i];
 }
 
 } // namespace cuda_verkle

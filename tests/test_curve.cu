@@ -128,7 +128,7 @@ void test_scalar_mul() {
     ASSERT_BW_EQ(bw_g0x3, bw_g0t, "G0 * 3 = G0 + G0 + G0");
 
     // scalar_mul(G0, 0) = identity
-    Fr zero = FR_ZERO;
+    Fr zero = fr_zero();
     PointExtended g0_times_0 = scalar_mul(G0, zero);
     ASSERT_TRUE(point_is_identity(g0_times_0), "G0 * 0 = identity");
 }
@@ -210,8 +210,8 @@ void test_banderwagon_serialization() {
 
 void test_strict_scalar_decoding() {
     const Fr inputs[] = {
-        FR_ZERO,
-        FR_ONE,
+        fr_zero(),
+        fr_one(),
         fr_from_u64(42),
         fr_from_u64(0xffffffffULL),
     };
@@ -286,7 +286,7 @@ void test_strict_banderwagon_decoding() {
             off_curve_rejected = !bw_from_bytes_strict(bytes, decoded);
             continue;
         }
-        const BanderwagonElement point = {{x, y, fp_mul(x, y), FP_MONT_ONE}};
+        const BanderwagonElement point = {{x, y, fp_mul(x, y), fp_mont_one()}};
         if (!bw_subgroup_check(point)) subgroup_rejected = !bw_from_bytes_strict(bytes, decoded);
     }
     ASSERT_TRUE(off_curve_rejected, "strict Banderwagon decoder rejects x values with no curve point");
@@ -312,8 +312,8 @@ void test_crs_loading() {
         Fp y = crs_pts.y[i];
         Fp x2 = fp_sqr(x);
         Fp y2 = fp_sqr(y);
-        Fp lhs = fp_add(fp_mul(COEFF_A, x2), y2);                 // ax^2 + y^2
-        Fp rhs = fp_add(FP_MONT_ONE, fp_mul(COEFF_D, fp_mul(x2, y2))); // 1 + dx^2y^2
+        Fp lhs = fp_add(fp_mul(curve_coeff_a(), x2), y2);                 // ax^2 + y^2
+        Fp rhs = fp_add(fp_mont_one(), fp_mul(curve_coeff_d(), fp_mul(x2, y2))); // 1 + dx^2y^2
         ASSERT_TRUE(fp_eq(lhs, rhs), "CRS point on curve");
     }
 }

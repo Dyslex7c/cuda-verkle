@@ -89,7 +89,7 @@ void test_full_width_scalar_properties() {
         strict_decode_roundtrip = strict_decode_roundtrip && fr_from_bytes_strict(encoded, decoded) && fr_eq(a, decoded);
         additive_inverse = additive_inverse && fr_eq(fr_sub(fr_add(a, b), b), a);
         if (!fr_is_zero(a)) {
-            multiplicative_inverse = multiplicative_inverse && fr_eq(fr_mul(a, fr_inv(a)), FR_ONE);
+            multiplicative_inverse = multiplicative_inverse && fr_eq(fr_mul(a, fr_inv(a)), fr_one());
         }
     }
 
@@ -111,7 +111,7 @@ void test_full_width_scalar_properties() {
     ASSERT_TRUE(strict_decode_roundtrip, "full-width scalar strict decoding round-trips");
     ASSERT_TRUE(additive_inverse, "random Fr addition/subtraction property holds");
     ASSERT_TRUE(multiplicative_inverse, "random non-zero Fr inverse property holds");
-    ASSERT_TRUE(fr_eq(reduced_modulus, FR_ZERO), "Fr modulus reduces to zero");
+    ASSERT_TRUE(fr_eq(reduced_modulus, fr_zero()), "Fr modulus reduces to zero");
     ASSERT_TRUE(raw_less_than_fr_modulus(all_ones_raw), "all-ones scalar reduces to canonical Fr");
 }
 

@@ -5,6 +5,13 @@
 #include "../curve/bandersnatch.cuh"
 #include "../curve/banderwagon.cuh"
 
+// The public CUDA API below exposes cudaStream_t.  Include its declaration
+// here rather than relying on includer order (for example, a test including
+// this header before cuda_runtime.h).
+#ifdef __CUDACC__
+#include <cuda_runtime_api.h>
+#endif
+
 // Maximum number of points in a single MSM (fixed for Verkle tree nodes)
 static constexpr int MSM_SIZE = 256;
 static constexpr int MSM_WINDOW_BITS = 8;

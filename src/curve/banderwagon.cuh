@@ -54,18 +54,24 @@ __device__ __host__ inline bool fp_is_positive(const Fp& y) {
     // (p-1)/2 in little-endian 32-bit limbs:
     // p = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001
     // (p-1)/2 = 0x39f6d3a994cebea4199cec0404d0ec02a9ded2017fff2dff7fffffff80000000
-    static constexpr uint32_t HALF_P[8] = {
-        0x80000000, 0x7fffffff, 0x7fff2dff, 0xa9ded201,
-        0x04d0ec02, 0x199cec04, 0x94cebea4, 0x39f6d3a9
-    };
-
     uint32_t raw[8];
     fp_to_raw(y, raw);
 
     // Compare raw against HALF_P (big-endian comparison).
     for (int i = 7; i >= 0; --i) {
-        if (raw[i] > HALF_P[i]) return true;
-        if (raw[i] < HALF_P[i]) return false;
+        uint32_t half_p_limb = 0;
+        switch (i) {
+            case 0: half_p_limb = 0x80000000; break;
+            case 1: half_p_limb = 0x7fffffff; break;
+            case 2: half_p_limb = 0x7fff2dff; break;
+            case 3: half_p_limb = 0xa9ded201; break;
+            case 4: half_p_limb = 0x04d0ec02; break;
+            case 5: half_p_limb = 0x199cec04; break;
+            case 6: half_p_limb = 0x94cebea4; break;
+            case 7: half_p_limb = 0x39f6d3a9; break;
+        }
+        if (raw[i] > half_p_limb) return true;
+        if (raw[i] < half_p_limb) return false;
     }
     return false; // equality would mean y == -y, which is not positive
 }
@@ -89,9 +95,9 @@ __device__ __host__ inline bool bw_subgroup_check(const BanderwagonElement& e) {
     PointAffine affine = point_to_affine(e.point);
     Fp x_sqr = fp_sqr(affine.x);
 
-    Fp a_x_sqr = fp_mul(COEFF_A, x_sqr);
+    Fp a_x_sqr = fp_mul(curve_coeff_a(), x_sqr);
 
-    Fp one = FP_MONT_ONE;
+    Fp one = fp_mont_one();
     Fp val = fp_sub(one, a_x_sqr);
 
     // check quadratic residue: val^((p-1)/2) == 1
@@ -111,8 +117,8 @@ __device__ __host__ inline bool bw_is_on_curve(const BanderwagonElement& e) {
     const PointAffine affine = point_to_affine(e.point);
     const Fp x_squared = fp_sqr(affine.x);
     const Fp y_squared = fp_sqr(affine.y);
-    const Fp lhs = fp_add(fp_mul(COEFF_A, x_squared), y_squared);
-    const Fp rhs = fp_add(FP_MONT_ONE, fp_mul(COEFF_D, fp_mul(x_squared, y_squared)));
+    const Fp lhs = fp_add(fp_mul(curve_coeff_a(), x_squared), y_squared);
+    const Fp rhs = fp_add(fp_mont_one(), fp_mul(curve_coeff_d(), fp_mul(x_squared, y_squared)));
     return fp_eq(lhs, rhs);
 }
 
@@ -121,8 +127,8 @@ __device__ __host__ inline bool bw_is_on_curve(const BanderwagonElement& e) {
 // also perform bw_subgroup_check(), as bw_from_bytes_strict() does below.
 __device__ __host__ inline bool bw_recover_y_from_x(const Fp& x, Fp& y) {
     const Fp x_squared = fp_sqr(x);
-    const Fp numerator = fp_sub(fp_mul(COEFF_A, x_squared), FP_MONT_ONE);
-    const Fp denominator = fp_sub(fp_mul(COEFF_D, x_squared), FP_MONT_ONE);
+    const Fp numerator = fp_sub(fp_mul(curve_coeff_a(), x_squared), fp_mont_one());
+    const Fp denominator = fp_sub(fp_mul(curve_coeff_d(), x_squared), fp_mont_one());
     if (fp_is_zero(denominator)) return false;
 
     Fp recovered;
@@ -142,7 +148,7 @@ __device__ __host__ inline bool bw_from_bytes_strict(const uint8_t in[32], Bande
 
     Fp y;
     if (!bw_recover_y_from_x(x, y)) return false;
-    const BanderwagonElement candidate = {{x, y, fp_mul(x, y), FP_MONT_ONE}};
+    const BanderwagonElement candidate = {{x, y, fp_mul(x, y), fp_mont_one()}};
     if (!bw_is_on_curve(candidate) || !bw_subgroup_check(candidate)) return false;
 
     out = candidate;
@@ -159,15 +165,15 @@ __device__ __host__ inline bool bw_from_bytes_strict(const uint8_t in[32], Bande
 // tree/commitment values.
 __device__ __host__ inline Fr bw_map_to_scalar_field(const BanderwagonElement& e) {
     const PointAffine affine = point_to_affine(e.point);
-    if (fp_is_zero(affine.x)) return FR_ZERO; // Includes the identity equivalence class.
+    if (fp_is_zero(affine.x)) return fr_zero(); // Includes the identity equivalence class.
 
     const Fp mapped = fp_mul(affine.x, fp_inv(affine.y));
     uint32_t raw[8];
     fp_to_raw(mapped, raw);
-    for (int reduction = 0; reduction < 4 && fr_cmp(raw, FR_MODULUS) >= 0; ++reduction) {
+    for (int reduction = 0; reduction < 4 && fr_cmp_modulus(raw) >= 0; ++reduction) {
         uint64_t borrow = 0;
         for (int limb = 0; limb < 8; ++limb) {
-            const uint64_t difference = static_cast<uint64_t>(raw[limb]) - FR_MODULUS[limb] - borrow;
+            const uint64_t difference = static_cast<uint64_t>(raw[limb]) - fr_modulus_limb(limb) - borrow;
             raw[limb] = static_cast<uint32_t>(difference);
             borrow = (difference >> 63) & 1;
         }

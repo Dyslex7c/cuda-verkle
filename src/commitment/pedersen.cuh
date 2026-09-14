@@ -11,14 +11,16 @@ struct PedersenCommitment {
     bool initialized = false;
     
     // Initialize by loading the CRS
-    __host__ __device__ void init() {
+    // CRS parsing is host-only. CUDA acceleration is provided through the
+    // explicit MsmGpuContext API, which uploads this fixed CRS once.
+    void init() {
         crs::load_crs(crs);
         initialized = true;
     }
     
     // Compute commitment for up to 256 scalar values
-    __host__ __device__ BanderwagonElement commit(const Fr values[], int n) const;
+    BanderwagonElement commit(const Fr values[], int n) const;
     
     // Compute commitment and return serialized 32-byte form
-    __host__ __device__ void commit_to_bytes(const Fr values[], int n, uint8_t out[32]) const;
+    void commit_to_bytes(const Fr values[], int n, uint8_t out[32]) const;
 };

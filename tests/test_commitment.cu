@@ -26,7 +26,7 @@ void test_commitment_identity() {
 
     // All-zero values should give identity commitment
     Fr values[256];
-    for (int i = 0; i < 256; ++i) values[i] = FR_ZERO;
+    for (int i = 0; i < 256; ++i) values[i] = fr_zero();
 
     BanderwagonElement c = pc.commit(values, 256);
     ASSERT_TRUE(point_is_identity(c.point), "commit(all zeros) = identity");
@@ -38,7 +38,7 @@ void test_commitment_single_basis() {
 
     // value=1 at index 0, rest zero -> commitment = G_0
     Fr values[256];
-    for (int i = 0; i < 256; ++i) values[i] = FR_ZERO;
+    for (int i = 0; i < 256; ++i) values[i] = fr_zero();
     values[0] = fr_from_u64(1);
 
     BanderwagonElement c = pc.commit(values, 256);
@@ -75,9 +75,9 @@ void test_commitment_linearity() {
     // commit(a + b) == commit(a) + commit(b) for disjoint supports
     Fr a_values[256], b_values[256], ab_values[256];
     for (int i = 0; i < 256; ++i) {
-        a_values[i] = FR_ZERO;
-        b_values[i] = FR_ZERO;
-        ab_values[i] = FR_ZERO;
+        a_values[i] = fr_zero();
+        b_values[i] = fr_zero();
+        ab_values[i] = fr_zero();
     }
     a_values[0] = fr_from_u64(5);
     a_values[1] = fr_from_u64(10);

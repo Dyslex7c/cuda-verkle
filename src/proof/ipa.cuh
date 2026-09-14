@@ -159,7 +159,7 @@ struct Transcript {
 };
 
 inline Fr inner_product(const Fr* a, const Fr* b, int n) {
-    Fr result = FR_ZERO;
+    Fr result = fr_zero();
     for (int i = 0; i < n; ++i) {
         result = fr_add(result, fr_mul(a[i], b[i]));
     }
@@ -182,7 +182,7 @@ inline PointExtended multiexp(const Fr* scalars, const PointExtended* points, in
 struct IpaOpeningProof {
     std::array<PointExtended, IPA_ROUNDS> L{};
     std::array<PointExtended, IPA_ROUNDS> R{};
-    Fr final_scalar = FR_ZERO;
+    Fr final_scalar = fr_zero();
 };
 
 // Wire format compatible with ipa-multipoint's IPAProof::to_bytes():
@@ -244,7 +244,7 @@ inline bool ipa_proof_from_bytes_strict(const uint8_t* in, size_t length, IpaOpe
 
 // Compute powers of the evaluation point: [1, z, z^2, ..., z^(IPA_WIDTH-1)]
 inline void ipa_powers(const Fr& z, Fr out[IPA_WIDTH]) {
-    out[0] = FR_ONE;
+    out[0] = fr_one();
     for (int i = 1; i < IPA_WIDTH; ++i) {
         out[i] = fr_mul(out[i - 1], z);
     }

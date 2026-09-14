@@ -28,28 +28,28 @@ static void print_fp_raw(const char* label, const Fp& a) {
 
 void test_fp_zero_one() {
     // 0 + 0 = 0
-    Fp z = fp_add(FP_MONT_ZERO, FP_MONT_ZERO);
-    ASSERT_FP_EQ(z, FP_MONT_ZERO, "0 + 0 = 0");
+    Fp z = fp_add(fp_mont_zero(), fp_mont_zero());
+    ASSERT_FP_EQ(z, fp_mont_zero(), "0 + 0 = 0");
 
     // 1 * 1 = 1
-    Fp one_sq = fp_mul(FP_MONT_ONE, FP_MONT_ONE);
-    ASSERT_FP_EQ(one_sq, FP_MONT_ONE, "1 * 1 = 1");
+    Fp one_sq = fp_mul(fp_mont_one(), fp_mont_one());
+    ASSERT_FP_EQ(one_sq, fp_mont_one(), "1 * 1 = 1");
 
     // 0 * 1 = 0
-    Fp z_mul = fp_mul(FP_MONT_ZERO, FP_MONT_ONE);
-    ASSERT_FP_EQ(z_mul, FP_MONT_ZERO, "0 * 1 = 0");
+    Fp z_mul = fp_mul(fp_mont_zero(), fp_mont_one());
+    ASSERT_FP_EQ(z_mul, fp_mont_zero(), "0 * 1 = 0");
 
     // 1 + 0 = 1
-    Fp one_add = fp_add(FP_MONT_ONE, FP_MONT_ZERO);
-    ASSERT_FP_EQ(one_add, FP_MONT_ONE, "1 + 0 = 1");
+    Fp one_add = fp_add(fp_mont_one(), fp_mont_zero());
+    ASSERT_FP_EQ(one_add, fp_mont_one(), "1 + 0 = 1");
 
     // 1 - 1 = 0
-    Fp one_sub = fp_sub(FP_MONT_ONE, FP_MONT_ONE);
-    ASSERT_FP_EQ(one_sub, FP_MONT_ZERO, "1 - 1 = 0");
+    Fp one_sub = fp_sub(fp_mont_one(), fp_mont_one());
+    ASSERT_FP_EQ(one_sub, fp_mont_zero(), "1 - 1 = 0");
 
     // -0 = 0
-    Fp neg_z = fp_neg(FP_MONT_ZERO);
-    ASSERT_FP_EQ(neg_z, FP_MONT_ZERO, "-0 = 0");
+    Fp neg_z = fp_neg(fp_mont_zero());
+    ASSERT_FP_EQ(neg_z, fp_mont_zero(), "-0 = 0");
 }
 
 void test_fp_add_sub() {
@@ -68,7 +68,7 @@ void test_fp_add_sub() {
     // a + (-a) = 0
     Fp neg_a = fp_neg(a);
     Fp zero = fp_add(a, neg_a);
-    ASSERT_FP_EQ(zero, FP_MONT_ZERO, "a + (-a) = 0");
+    ASSERT_FP_EQ(zero, fp_mont_zero(), "a + (-a) = 0");
 
     // Commutativity: a + b = b + a
     Fp sum2 = fp_add(b, a);
@@ -119,20 +119,20 @@ void test_fp_sqr() {
 
 void test_fp_inv() {
     // inv(1) = 1
-    Fp inv_one = fp_inv(FP_MONT_ONE);
-    ASSERT_FP_EQ(inv_one, FP_MONT_ONE, "inv(1) = 1");
+    Fp inv_one = fp_inv(fp_mont_one());
+    ASSERT_FP_EQ(inv_one, fp_mont_one(), "inv(1) = 1");
 
     // a * inv(a) = 1
     Fp a = fp_from_u64(42);
     Fp inv_a = fp_inv(a);
     Fp prod = fp_mul(a, inv_a);
-    ASSERT_FP_EQ(prod, FP_MONT_ONE, "42 * inv(42) = 1");
+    ASSERT_FP_EQ(prod, fp_mont_one(), "42 * inv(42) = 1");
 
     // Larger value
     Fp b = fp_from_u64(123456789);
     Fp inv_b = fp_inv(b);
     Fp prod2 = fp_mul(b, inv_b);
-    ASSERT_FP_EQ(prod2, FP_MONT_ONE, "123456789 * inv(123456789) = 1");
+    ASSERT_FP_EQ(prod2, fp_mont_one(), "123456789 * inv(123456789) = 1");
 }
 
 void test_fp_from_raw_roundtrip() {
@@ -168,26 +168,26 @@ void test_fp_modular_reduction() {
         0x09a1d805, 0x3339d808, 0x299d7d48, 0x73eda753
     };
     Fp pm1 = fp_from_raw(p_minus_1);
-    Fp result = fp_add(pm1, FP_MONT_ONE);
-    ASSERT_FP_EQ(result, FP_MONT_ZERO, "(p-1) + 1 = 0 mod p");
+    Fp result = fp_add(pm1, fp_mont_one());
+    ASSERT_FP_EQ(result, fp_mont_zero(), "(p-1) + 1 = 0 mod p");
 
     // p-1 should be -1, so (p-1)^2 = 1
     Fp neg_one_sq = fp_sqr(pm1);
-    ASSERT_FP_EQ(neg_one_sq, FP_MONT_ONE, "(-1)^2 = 1");
+    ASSERT_FP_EQ(neg_one_sq, fp_mont_one(), "(-1)^2 = 1");
 }
 
 void test_fr_basic() {
     // 0 + 0 = 0
-    Fr z = fr_add(FR_ZERO, FR_ZERO);
-    ASSERT_TRUE(fr_eq(z, FR_ZERO), "Fr: 0 + 0 = 0");
+    Fr z = fr_add(fr_zero(), fr_zero());
+    ASSERT_TRUE(fr_eq(z, fr_zero()), "Fr: 0 + 0 = 0");
 
     // 1 * 1 = 1
-    Fr one_sq = fr_mul(FR_ONE, FR_ONE);
-    ASSERT_TRUE(fr_eq(one_sq, FR_ONE), "Fr: 1 * 1 = 1");
+    Fr one_sq = fr_mul(fr_one(), fr_one());
+    ASSERT_TRUE(fr_eq(one_sq, fr_one()), "Fr: 1 * 1 = 1");
 
     // 1 - 1 = 0
-    Fr one_sub = fr_sub(FR_ONE, FR_ONE);
-    ASSERT_TRUE(fr_eq(one_sub, FR_ZERO), "Fr: 1 - 1 = 0");
+    Fr one_sub = fr_sub(fr_one(), fr_one());
+    ASSERT_TRUE(fr_eq(one_sub, fr_zero()), "Fr: 1 - 1 = 0");
 
     // Small mul: 6 * 7 = 42
     Fr six = fr_from_u64(6);
@@ -200,7 +200,7 @@ void test_fr_basic() {
     Fr a = fr_from_u64(12345);
     Fr inv_a = fr_inv(a);
     Fr check = fr_mul(a, inv_a);
-    ASSERT_TRUE(fr_eq(check, FR_ONE), "Fr: a * inv(a) = 1");
+    ASSERT_TRUE(fr_eq(check, fr_one()), "Fr: a * inv(a) = 1");
 }
 
 void test_fr_to_raw_roundtrip() {
@@ -215,6 +215,26 @@ void test_fr_to_raw_roundtrip() {
         if (raw_in[i] != raw_out[i]) { match = false; break; }
     }
     ASSERT_TRUE(match, "Fr: from_raw -> to_raw roundtrip");
+}
+
+void test_cuda_literal_constant_accessors() {
+    // The arithmetic headers use literal accessors in __host__ __device__ code:
+    // CUDA may not read unannotated namespace-scope arrays from device code.
+    // Keep the device-safe literals locked to the canonical host test constants.
+    bool fp_modulus_matches = true;
+    bool fp_r2_matches = true;
+    bool fr_modulus_matches = true;
+    bool fr_r2_matches = true;
+    for (int i = 0; i < 8; ++i) {
+        fp_modulus_matches &= fp_modulus_limb(i) == FP_MODULUS[i];
+        fp_r2_matches &= fp_r2_limb(i) == FP_R2[i];
+        fr_modulus_matches &= fr_modulus_limb(i) == FR_MODULUS[i];
+        fr_r2_matches &= fr_r2_limb(i) == FR_R2[i];
+    }
+    ASSERT_TRUE(fp_modulus_matches, "Fp device-safe modulus literals match canonical constants");
+    ASSERT_TRUE(fp_r2_matches, "Fp device-safe R^2 literals match canonical constants");
+    ASSERT_TRUE(fr_modulus_matches, "Fr device-safe modulus literals match canonical constants");
+    ASSERT_TRUE(fr_r2_matches, "Fr device-safe R^2 literals match canonical constants");
 }
 
 Fp fp_from_vector_hex(const std::string& hex) {
@@ -235,7 +255,7 @@ void test_fp_rust_reference_vectors() {
         const std::string& op = test_case.at("op").as_string();
         const Fp a = fp_from_vector_hex(test_case.at("a").as_string());
         const Fp expected = fp_from_vector_hex(test_case.at("result").as_string());
-        Fp actual = FP_MONT_ZERO;
+        Fp actual = fp_mont_zero();
         if (op == "add") actual = fp_add(a, fp_from_vector_hex(test_case.at("b").as_string()));
         else if (op == "sub") actual = fp_sub(a, fp_from_vector_hex(test_case.at("b").as_string()));
         else if (op == "mul") actual = fp_mul(a, fp_from_vector_hex(test_case.at("b").as_string()));
@@ -261,6 +281,7 @@ int main() {
 
     test_fr_basic();
     test_fr_to_raw_roundtrip();
+    test_cuda_literal_constant_accessors();
     test_fp_rust_reference_vectors();
 
     printf("\nResults: %d passed, %d failed\n", tests_passed, tests_failed);

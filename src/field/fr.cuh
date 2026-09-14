@@ -36,11 +36,34 @@ struct Fr {
     uint32_t limbs[8];
 };
 
-static constexpr Fr FR_ZERO = {{0, 0, 0, 0, 0, 0, 0, 0}};
-static constexpr Fr FR_ONE = {{
-    0xbc48c0f8, 0x5817ca56, 0x5f37dc74, 0x0383c7fc, 
-    0xecbc4ff8, 0x998c4fef, 0xacc5056f, 0x1824b159
-}}; // R mod n
+__device__ __host__ inline Fr fr_zero() {
+    return {{0, 0, 0, 0, 0, 0, 0, 0}};
+}
+
+__device__ __host__ inline Fr fr_one() {
+    return {{0xbc48c0f8, 0x5817ca56, 0x5f37dc74, 0x0383c7fc,
+             0xecbc4ff8, 0x998c4fef, 0xacc5056f, 0x1824b159}};
+}
+
+__device__ __host__ constexpr uint32_t fr_modulus_limb(int index) {
+    switch (index) {
+        case 0: return 0x2876e7e1; case 1: return 0x74fd06b5;
+        case 2: return 0x74190471; case 3: return 0xff8f8700;
+        case 4: return 0x02687600; case 5: return 0x0cce7602;
+        case 6: return 0xca675f52; case 7: return 0x1cfb69d4;
+        default: return 0;
+    }
+}
+
+__device__ __host__ constexpr uint32_t fr_r2_limb(int index) {
+    switch (index) {
+        case 0: return 0x58db47cb; case 1: return 0xdbb4f5d6;
+        case 2: return 0x7fecb938; case 3: return 0x40fa7ca2;
+        case 4: return 0xc0055cea; case 5: return 0xaa9e6dae;
+        case 6: return 0xb14aec7d; case 7: return 0x0ae793dd;
+        default: return 0;
+    }
+}
 
 // --- Fr Function Declarations ---
 
@@ -66,6 +89,15 @@ __device__ __host__ inline int fr_cmp(const uint32_t a[8], const uint32_t b[8]) 
     return 0;
 }
 
+__device__ __host__ inline int fr_cmp_modulus(const uint32_t a[8]) {
+    for (int i = 7; i >= 0; --i) {
+        const uint32_t modulus_limb = fr_modulus_limb(i);
+        if (a[i] > modulus_limb) return 1;
+        if (a[i] < modulus_limb) return -1;
+    }
+    return 0;
+}
+
 __device__ __host__ inline Fr fr_add(const Fr& a, const Fr& b) {
     Fr res;
 #ifdef __CUDA_ARCH__
@@ -86,21 +118,21 @@ __device__ __host__ inline Fr fr_add(const Fr& a, const Fr& b) {
     }
 #endif
 
-    if (fr_cmp(res.limbs, FR_MODULUS) >= 0) {
+    if (fr_cmp_modulus(res.limbs) >= 0) {
         Fr sub_res;
 #ifdef __CUDA_ARCH__
-        asm("sub.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[0]) : "r"(res.limbs[0]), "r"(FR_MODULUS[0]));
-        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[1]) : "r"(res.limbs[1]), "r"(FR_MODULUS[1]));
-        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[2]) : "r"(res.limbs[2]), "r"(FR_MODULUS[2]));
-        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[3]) : "r"(res.limbs[3]), "r"(FR_MODULUS[3]));
-        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[4]) : "r"(res.limbs[4]), "r"(FR_MODULUS[4]));
-        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[5]) : "r"(res.limbs[5]), "r"(FR_MODULUS[5]));
-        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[6]) : "r"(res.limbs[6]), "r"(FR_MODULUS[6]));
-        asm("subc.u32 %0, %1, %2;"    : "=r"(sub_res.limbs[7]) : "r"(res.limbs[7]), "r"(FR_MODULUS[7]));
+        asm("sub.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[0]) : "r"(res.limbs[0]), "n"(fr_modulus_limb(0)));
+        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[1]) : "r"(res.limbs[1]), "n"(fr_modulus_limb(1)));
+        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[2]) : "r"(res.limbs[2]), "n"(fr_modulus_limb(2)));
+        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[3]) : "r"(res.limbs[3]), "n"(fr_modulus_limb(3)));
+        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[4]) : "r"(res.limbs[4]), "n"(fr_modulus_limb(4)));
+        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[5]) : "r"(res.limbs[5]), "n"(fr_modulus_limb(5)));
+        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[6]) : "r"(res.limbs[6]), "n"(fr_modulus_limb(6)));
+        asm("subc.u32 %0, %1, %2;"    : "=r"(sub_res.limbs[7]) : "r"(res.limbs[7]), "n"(fr_modulus_limb(7)));
 #else
         uint64_t borrow = 0;
         for (int i = 0; i < 8; ++i) {
-            uint64_t diff = (uint64_t)res.limbs[i] - FR_MODULUS[i] - borrow;
+            uint64_t diff = (uint64_t)res.limbs[i] - fr_modulus_limb(i) - borrow;
             sub_res.limbs[i] = (uint32_t)diff;
             borrow = (diff >> 63) & 1;
         }
@@ -139,18 +171,18 @@ __device__ __host__ inline Fr fr_sub(const Fr& a, const Fr& b) {
 #endif
         Fr add_res;
 #ifdef __CUDA_ARCH__
-        asm("add.cc.u32 %0, %1, %2;" : "=r"(add_res.limbs[0]) : "r"(res.limbs[0]), "r"(FR_MODULUS[0]));
-        asm("addc.cc.u32 %0, %1, %2;" : "=r"(add_res.limbs[1]) : "r"(res.limbs[1]), "r"(FR_MODULUS[1]));
-        asm("addc.cc.u32 %0, %1, %2;" : "=r"(add_res.limbs[2]) : "r"(res.limbs[2]), "r"(FR_MODULUS[2]));
-        asm("addc.cc.u32 %0, %1, %2;" : "=r"(add_res.limbs[3]) : "r"(res.limbs[3]), "r"(FR_MODULUS[3]));
-        asm("addc.cc.u32 %0, %1, %2;" : "=r"(add_res.limbs[4]) : "r"(res.limbs[4]), "r"(FR_MODULUS[4]));
-        asm("addc.cc.u32 %0, %1, %2;" : "=r"(add_res.limbs[5]) : "r"(res.limbs[5]), "r"(FR_MODULUS[5]));
-        asm("addc.cc.u32 %0, %1, %2;" : "=r"(add_res.limbs[6]) : "r"(res.limbs[6]), "r"(FR_MODULUS[6]));
-        asm("addc.u32 %0, %1, %2;" : "=r"(add_res.limbs[7]) : "r"(res.limbs[7]), "r"(FR_MODULUS[7]));
+        asm("add.cc.u32 %0, %1, %2;" : "=r"(add_res.limbs[0]) : "r"(res.limbs[0]), "n"(fr_modulus_limb(0)));
+        asm("addc.cc.u32 %0, %1, %2;" : "=r"(add_res.limbs[1]) : "r"(res.limbs[1]), "n"(fr_modulus_limb(1)));
+        asm("addc.cc.u32 %0, %1, %2;" : "=r"(add_res.limbs[2]) : "r"(res.limbs[2]), "n"(fr_modulus_limb(2)));
+        asm("addc.cc.u32 %0, %1, %2;" : "=r"(add_res.limbs[3]) : "r"(res.limbs[3]), "n"(fr_modulus_limb(3)));
+        asm("addc.cc.u32 %0, %1, %2;" : "=r"(add_res.limbs[4]) : "r"(res.limbs[4]), "n"(fr_modulus_limb(4)));
+        asm("addc.cc.u32 %0, %1, %2;" : "=r"(add_res.limbs[5]) : "r"(res.limbs[5]), "n"(fr_modulus_limb(5)));
+        asm("addc.cc.u32 %0, %1, %2;" : "=r"(add_res.limbs[6]) : "r"(res.limbs[6]), "n"(fr_modulus_limb(6)));
+        asm("addc.u32 %0, %1, %2;" : "=r"(add_res.limbs[7]) : "r"(res.limbs[7]), "n"(fr_modulus_limb(7)));
 #else
         uint64_t carry = 0;
         for (int i = 0; i < 8; ++i) {
-            uint64_t sum = (uint64_t)res.limbs[i] + FR_MODULUS[i] + carry;
+            uint64_t sum = (uint64_t)res.limbs[i] + fr_modulus_limb(i) + carry;
             add_res.limbs[i] = (uint32_t)sum;
             carry = sum >> 32;
         }
@@ -161,8 +193,8 @@ __device__ __host__ inline Fr fr_sub(const Fr& a, const Fr& b) {
 }
 
 __device__ __host__ inline Fr fr_neg(const Fr& a) {
-    if (fr_is_zero(a)) return FR_ZERO;
-    return fr_sub(FR_ZERO, a);
+    if (fr_is_zero(a)) return fr_zero();
+    return fr_sub(fr_zero(), a);
 }
 
 __device__ __host__ inline Fr fr_mul(const Fr& a, const Fr& b) {
@@ -190,8 +222,9 @@ __device__ __host__ inline Fr fr_mul(const Fr& a, const Fr& b) {
         uint32_t carry2 = 0;
         for (int j = 0; j < 8; ++j) {
             uint32_t lo, hi;
-            asm("mad.lo.cc.u32 %0, %1, %2, %3;" : "=r"(lo) : "r"(m), "r"(FR_MODULUS[j]), "r"(t[j]));
-            asm("madc.hi.cc.u32 %0, %1, %2, 0;" : "=r"(hi) : "r"(m), "r"(FR_MODULUS[j]));
+            const uint32_t modulus_limb = fr_modulus_limb(j);
+            asm("mad.lo.cc.u32 %0, %1, %2, %3;" : "=r"(lo) : "r"(m), "r"(modulus_limb), "r"(t[j]));
+            asm("madc.hi.cc.u32 %0, %1, %2, 0;" : "=r"(hi) : "r"(m), "r"(modulus_limb));
             
             asm("add.cc.u32 %0, %1, %2;" : "=r"(t[j]) : "r"(lo), "r"(carry2));
             asm("addc.u32 %0, %1, 0;" : "=r"(carry2) : "r"(hi));
@@ -216,7 +249,7 @@ __device__ __host__ inline Fr fr_mul(const Fr& a, const Fr& b) {
 
         uint64_t carry2 = 0;
         for (int j = 0; j < 8; ++j) {
-            uint64_t sum = (uint64_t)t[j] + (uint64_t)m * FR_MODULUS[j] + carry2;
+            uint64_t sum = (uint64_t)t[j] + (uint64_t)m * fr_modulus_limb(j) + carry2;
             t[j] = (uint32_t)sum;
             carry2 = sum >> 32;
         }
@@ -232,21 +265,21 @@ __device__ __host__ inline Fr fr_mul(const Fr& a, const Fr& b) {
     Fr res;
     for (int j = 0; j < 8; ++j) res.limbs[j] = t[j];
     
-    if (fr_cmp(res.limbs, FR_MODULUS) >= 0) {
+    if (fr_cmp_modulus(res.limbs) >= 0) {
         Fr sub_res;
 #ifdef __CUDA_ARCH__
-        asm("sub.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[0]) : "r"(res.limbs[0]), "r"(FR_MODULUS[0]));
-        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[1]) : "r"(res.limbs[1]), "r"(FR_MODULUS[1]));
-        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[2]) : "r"(res.limbs[2]), "r"(FR_MODULUS[2]));
-        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[3]) : "r"(res.limbs[3]), "r"(FR_MODULUS[3]));
-        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[4]) : "r"(res.limbs[4]), "r"(FR_MODULUS[4]));
-        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[5]) : "r"(res.limbs[5]), "r"(FR_MODULUS[5]));
-        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[6]) : "r"(res.limbs[6]), "r"(FR_MODULUS[6]));
-        asm("subc.u32 %0, %1, %2;"    : "=r"(sub_res.limbs[7]) : "r"(res.limbs[7]), "r"(FR_MODULUS[7]));
+        asm("sub.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[0]) : "r"(res.limbs[0]), "n"(fr_modulus_limb(0)));
+        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[1]) : "r"(res.limbs[1]), "n"(fr_modulus_limb(1)));
+        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[2]) : "r"(res.limbs[2]), "n"(fr_modulus_limb(2)));
+        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[3]) : "r"(res.limbs[3]), "n"(fr_modulus_limb(3)));
+        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[4]) : "r"(res.limbs[4]), "n"(fr_modulus_limb(4)));
+        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[5]) : "r"(res.limbs[5]), "n"(fr_modulus_limb(5)));
+        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[6]) : "r"(res.limbs[6]), "n"(fr_modulus_limb(6)));
+        asm("subc.u32 %0, %1, %2;"    : "=r"(sub_res.limbs[7]) : "r"(res.limbs[7]), "n"(fr_modulus_limb(7)));
 #else
         uint64_t borrow = 0;
         for (int i = 0; i < 8; ++i) {
-            uint64_t diff = (uint64_t)res.limbs[i] - FR_MODULUS[i] - borrow;
+            uint64_t diff = (uint64_t)res.limbs[i] - fr_modulus_limb(i) - borrow;
             sub_res.limbs[i] = (uint32_t)diff;
             borrow = (diff >> 63) & 1;
         }
@@ -266,13 +299,13 @@ __device__ __host__ inline Fr fr_from_raw(const uint32_t limbs[8]) {
     Fr a;
     for (int i = 0; i < 8; ++i) a.limbs[i] = limbs[i];
     Fr r2;
-    for (int i = 0; i < 8; ++i) r2.limbs[i] = FR_R2[i];
+    for (int i = 0; i < 8; ++i) r2.limbs[i] = fr_r2_limb(i);
     return fr_mul(a, r2);
 }
 
 // Convert from Montgomery form to raw limbs (a * 1 mod n)
 __device__ __host__ inline void fr_to_raw(const Fr& a, uint32_t limbs[8]) {
-    Fr one = FR_ZERO;
+    Fr one = fr_zero();
     one.limbs[0] = 1;
     Fr res = fr_mul(a, one);
     for (int i = 0; i < 8; ++i) limbs[i] = res.limbs[i];
@@ -294,7 +327,7 @@ __device__ __host__ inline bool fr_from_bytes_strict(const uint8_t in[32], Fr& o
                  (static_cast<uint32_t>(in[offset + 2]) << 8) |
                  static_cast<uint32_t>(in[offset + 3]);
     }
-    if (fr_cmp(raw, FR_MODULUS) >= 0) return false;
+    if (fr_cmp_modulus(raw) >= 0) return false;
     out = fr_from_raw(raw);
     return true;
 }
@@ -313,7 +346,7 @@ __device__ __host__ inline void fr_to_bytes(const Fr& value, uint8_t out[32]) {
 }
 
 __device__ __host__ inline Fr fr_pow(Fr base, const uint32_t exp[8]) {
-    Fr res = FR_ONE;
+    Fr res = fr_one();
     for (int i = 7; i >= 0; --i) {
         for (int j = 31; j >= 0; --j) {
             res = fr_sqr(res);

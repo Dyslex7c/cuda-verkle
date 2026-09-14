@@ -3,27 +3,17 @@
 #include "../field/fp.cuh"
 #include "../field/fr.cuh"
 
-// COEFF_A = -5 mod p, in Montgomery form  
-static constexpr uint32_t COEFF_A_MONT_LIMBS[8] = {
-    0x0000000c, 0xfffffff4, 0xffec4ff3, 0xece3b023, 0x7396203f, 0x66b62060, 0xf361df62, 0x6f23d7e5
-};
+// Curve parameters in Montgomery form. These are returned from literal
+// accessors so both host and device paths remain self-contained.
+__device__ __host__ inline Fp curve_coeff_a() {
+    return {{0x0000000c, 0xfffffff4, 0xffec4ff3, 0xece3b023,
+             0x7396203f, 0x66b62060, 0xf361df62, 0x6f23d7e5}};
+}
 
-// COEFF_D in Montgomery form
-static constexpr uint32_t COEFF_D_MONT_LIMBS[8] = {
-    0x47a2c730, 0xa8dced1b, 0xad3cccc7, 0x381c065a, 0x188351f8, 0x53ff52e1, 0x990fe940, 0x362e8d63
-};
-
-// field element for curve parameter a
-static constexpr Fp COEFF_A = {
-    COEFF_A_MONT_LIMBS[0], COEFF_A_MONT_LIMBS[1], COEFF_A_MONT_LIMBS[2], COEFF_A_MONT_LIMBS[3],
-    COEFF_A_MONT_LIMBS[4], COEFF_A_MONT_LIMBS[5], COEFF_A_MONT_LIMBS[6], COEFF_A_MONT_LIMBS[7]
-};
-
-// field element for curve parameter d
-static constexpr Fp COEFF_D = {
-    COEFF_D_MONT_LIMBS[0], COEFF_D_MONT_LIMBS[1], COEFF_D_MONT_LIMBS[2], COEFF_D_MONT_LIMBS[3],
-    COEFF_D_MONT_LIMBS[4], COEFF_D_MONT_LIMBS[5], COEFF_D_MONT_LIMBS[6], COEFF_D_MONT_LIMBS[7]
-};
+__device__ __host__ inline Fp curve_coeff_d() {
+    return {{0x47a2c730, 0xa8dced1b, 0xad3cccc7, 0x381c065a,
+             0x188351f8, 0x53ff52e1, 0x990fe940, 0x362e8d63}};
+}
 
 // point on twisted Edwards curve in extended projective coordinates (X:Y:T:Z)
 // Represents the affine point (x, y) where x = X/Z, y = Y/Z, and T = XY/Z
@@ -37,7 +27,7 @@ struct PointAffine {
 };
 
 __device__ __host__ inline PointExtended point_identity() {
-    return {FP_MONT_ZERO, FP_MONT_ONE, FP_MONT_ZERO, FP_MONT_ONE};
+    return {fp_mont_zero(), fp_mont_one(), fp_mont_zero(), fp_mont_one()};
 }
 
 // Adds two points in extended projective coordinates
@@ -46,7 +36,7 @@ __device__ __host__ inline PointExtended point_add(const PointExtended& P, const
 
     Fp B = fp_mul(P.Y, Q.Y);
     
-    Fp C = fp_mul(fp_mul(P.T, COEFF_D), Q.T);
+    Fp C = fp_mul(fp_mul(P.T, curve_coeff_d()), Q.T);
 
     Fp D = fp_mul(P.Z, Q.Z);
 
@@ -60,7 +50,7 @@ __device__ __host__ inline PointExtended point_add(const PointExtended& P, const
 
     Fp G = fp_add(D, C);
 
-    Fp H = fp_sub(B, fp_mul(COEFF_A, A));
+    Fp H = fp_sub(B, fp_mul(curve_coeff_a(), A));
 
 
     Fp X3 = fp_mul(E, F);
@@ -84,7 +74,7 @@ __device__ __host__ inline PointExtended point_double(const PointExtended& P) {
     Fp Z_sqr = fp_sqr(P.Z);
     Fp C = fp_add(Z_sqr, Z_sqr);
 
-    Fp D = fp_mul(COEFF_A, A);
+    Fp D = fp_mul(curve_coeff_a(), A);
 
     Fp X_plus_Y = fp_add(P.X, P.Y);
     Fp E = fp_sub(fp_sub(fp_sqr(X_plus_Y), A), B);
@@ -147,7 +137,7 @@ __device__ __host__ inline PointAffine point_to_affine(const PointExtended& P) {
 // convert from affine coordinates to extended projective coordinates
 __device__ __host__ inline PointExtended point_from_affine(const PointAffine& P) {
     Fp T = fp_mul(P.x, P.y);
-    return {P.x, P.y, T, FP_MONT_ONE};
+    return {P.x, P.y, T, fp_mont_one()};
 }
 
 // check if point is the identity point

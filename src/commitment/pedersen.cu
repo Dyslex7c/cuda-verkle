@@ -1,6 +1,6 @@
 #include "pedersen.cuh"
 
-__host__ __device__ BanderwagonElement PedersenCommitment::commit(const Fr values[], int n) const {
+BanderwagonElement PedersenCommitment::commit(const Fr values[], int n) const {
     // Do not read uninitialized CRS storage if a caller forgot init().
     if (!initialized || n <= 0) return BanderwagonElement{point_identity()};
     // Clamp n to CRS size
@@ -11,7 +11,7 @@ __host__ __device__ BanderwagonElement PedersenCommitment::commit(const Fr value
     return BanderwagonElement{result};
 }
 
-__host__ __device__ void PedersenCommitment::commit_to_bytes(const Fr values[], int n, uint8_t out[32]) const {
+void PedersenCommitment::commit_to_bytes(const Fr values[], int n, uint8_t out[32]) const {
     BanderwagonElement c = commit(values, n);
     bw_to_bytes(c, out);
 }

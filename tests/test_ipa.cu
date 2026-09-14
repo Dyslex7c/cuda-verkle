@@ -71,7 +71,7 @@ void test_ipa_wire_encoding(const crs::CRSPoints& crs, const PointExtended& comm
 
 void test_ipa_soundness(const crs::CRSPoints& crs, const PointExtended& commitment, const Fr& z, const Fr& y, const IpaOpeningProof& proof, const Fr values[IPA_WIDTH]) {
     // Tampered evaluation
-    Fr bad_y = fr_add(y, FR_ONE);
+    Fr bad_y = fr_add(y, fr_one());
     CHECK(!ipa_verify(commitment, z, bad_y, proof, crs), "verifier rejects a tampered evaluation");
 
     // Tampered round point
@@ -84,7 +84,7 @@ void test_ipa_soundness(const crs::CRSPoints& crs, const PointExtended& commitme
     for (int i = 0; i < IPA_WIDTH; ++i) {
         changed_values[i] = values[i];
     }
-    changed_values[12] = fr_add(changed_values[12], FR_ONE);
+    changed_values[12] = fr_add(changed_values[12], fr_one());
     PointExtended bad_commitment = ipa_commit(changed_values, crs);
     CHECK(!ipa_verify(bad_commitment, z, y, proof, crs), "verifier binds proof to the commitment");
 }
