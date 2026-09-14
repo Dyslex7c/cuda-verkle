@@ -34,12 +34,11 @@ struct Fp {
     uint32_t limbs[8];
 };
 
-#ifdef FP_ZERO
-#undef FP_ZERO
-#endif
-
-static constexpr Fp FP_ZERO = {{0, 0, 0, 0, 0, 0, 0, 0}};
-static constexpr Fp FP_ONE = {{
+// Deliberately avoid the standard-library FP_ZERO identifier. CUDA 12.8
+// exposes it as a global declaration, so a field constant with that name
+// fails to compile even when it is not a preprocessor macro.
+static constexpr Fp FP_MONT_ZERO = {{0, 0, 0, 0, 0, 0, 0, 0}};
+static constexpr Fp FP_MONT_ONE = {{
     0xfffffffe, 0x00000001, 0x00034802, 0x5884b7fa, 
     0xecbc4ff5, 0x998c4fef, 0xacc5056f, 0x1824b159
 }}; // R mod p
@@ -69,7 +68,6 @@ __device__ __host__ inline int fp_cmp(const uint32_t a[8], const uint32_t b[8]) 
 __device__ __host__ inline Fp fp_add(const Fp& a, const Fp& b) {
     Fp res;
 #ifdef __CUDA_ARCH__
-    uint32_t carry = 0;
     asm("add.cc.u32 %0, %1, %2;" : "=r"(res.limbs[0]) : "r"(a.limbs[0]), "r"(b.limbs[0]));
     asm("addc.cc.u32 %0, %1, %2;" : "=r"(res.limbs[1]) : "r"(a.limbs[1]), "r"(b.limbs[1]));
     asm("addc.cc.u32 %0, %1, %2;" : "=r"(res.limbs[2]) : "r"(a.limbs[2]), "r"(b.limbs[2]));
@@ -162,8 +160,8 @@ __device__ __host__ inline Fp fp_sub(const Fp& a, const Fp& b) {
 }
 
 __device__ __host__ inline Fp fp_neg(const Fp& a) {
-    if (fp_is_zero(a)) return FP_ZERO;
-    return fp_sub(FP_ZERO, a);
+    if (fp_is_zero(a)) return FP_MONT_ZERO;
+    return fp_sub(FP_MONT_ZERO, a);
 }
 
 __device__ __host__ inline Fp fp_mul(const Fp& a, const Fp& b) {
@@ -274,7 +272,7 @@ __device__ __host__ inline Fp fp_from_raw(const uint32_t limbs[8]) {
 
 // Convert from Montgomery form to raw limbs (a * 1 mod p)
 __device__ __host__ inline void fp_to_raw(const Fp& a, uint32_t limbs[8]) {
-    Fp one = FP_ZERO;
+    Fp one = FP_MONT_ZERO;
     one.limbs[0] = 1;
     Fp res = fp_mul(a, one);
     for (int i = 0; i < 8; ++i) limbs[i] = res.limbs[i];
@@ -316,7 +314,7 @@ __device__ __host__ inline void fp_to_bytes(const Fp& value, uint8_t out[32]) {
 }
 
 __device__ __host__ inline Fp fp_pow(Fp base, const uint32_t exp[8]) {
-    Fp res = FP_ONE;
+    Fp res = FP_MONT_ONE;
     for (int i = 7; i >= 0; --i) {
         for (int j = 31; j >= 0; --j) {
             res = fp_sqr(res);
@@ -334,7 +332,7 @@ __device__ __host__ inline Fp fp_pow(Fp base, const uint32_t exp[8]) {
 // for public decoding/validation, not secret-scalar operations.
 __device__ __host__ inline bool fp_sqrt(const Fp& value, Fp& out) {
     if (fp_is_zero(value)) {
-        out = FP_ZERO;
+        out = FP_MONT_ZERO;
         return true;
     }
 
@@ -351,17 +349,17 @@ __device__ __host__ inline bool fp_sqrt(const Fp& value, Fp& out) {
         0x199cec04, 0x94cebea4, 0x39f6d3a9, 0x00000000
     };
 
-    if (!fp_eq(fp_pow(value, LEGENDRE_EXP), FP_ONE)) return false;
+    if (!fp_eq(fp_pow(value, LEGENDRE_EXP), FP_MONT_ONE)) return false;
 
     Fp c = fp_pow(fp_from_u64(5), Q);
     Fp t = fp_pow(value, Q);
     Fp root = fp_pow(value, Q_PLUS_ONE_OVER_TWO);
     int m = 32;
 
-    while (!fp_eq(t, FP_ONE)) {
+    while (!fp_eq(t, FP_MONT_ONE)) {
         int i = 1;
         Fp t_power = fp_sqr(t);
-        while (i < m && !fp_eq(t_power, FP_ONE)) {
+        while (i < m && !fp_eq(t_power, FP_MONT_ONE)) {
             t_power = fp_sqr(t_power);
             ++i;
         }

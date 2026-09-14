@@ -5,7 +5,7 @@
 #include <string>
 
 // Include the test-only parser before field headers: <cstdlib>, which the
-// parser needs, may expose the C FP_ZERO macro on some host toolchains.
+// parser needs, may expose the C FP_ZERO identifier on some host toolchains.
 #include "../src/util/test_vectors.cuh"
 #include "../src/field/fp.cuh"
 #include "../src/field/fr.cuh"

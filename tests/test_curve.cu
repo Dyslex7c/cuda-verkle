@@ -286,7 +286,7 @@ void test_strict_banderwagon_decoding() {
             off_curve_rejected = !bw_from_bytes_strict(bytes, decoded);
             continue;
         }
-        const BanderwagonElement point = {{x, y, fp_mul(x, y), FP_ONE}};
+        const BanderwagonElement point = {{x, y, fp_mul(x, y), FP_MONT_ONE}};
         if (!bw_subgroup_check(point)) subgroup_rejected = !bw_from_bytes_strict(bytes, decoded);
     }
     ASSERT_TRUE(off_curve_rejected, "strict Banderwagon decoder rejects x values with no curve point");
@@ -313,7 +313,7 @@ void test_crs_loading() {
         Fp x2 = fp_sqr(x);
         Fp y2 = fp_sqr(y);
         Fp lhs = fp_add(fp_mul(COEFF_A, x2), y2);                 // ax^2 + y^2
-        Fp rhs = fp_add(FP_ONE, fp_mul(COEFF_D, fp_mul(x2, y2))); // 1 + dx^2y^2
+        Fp rhs = fp_add(FP_MONT_ONE, fp_mul(COEFF_D, fp_mul(x2, y2))); // 1 + dx^2y^2
         ASSERT_TRUE(fp_eq(lhs, rhs), "CRS point on curve");
     }
 }

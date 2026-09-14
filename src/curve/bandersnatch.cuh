@@ -37,7 +37,7 @@ struct PointAffine {
 };
 
 __device__ __host__ inline PointExtended point_identity() {
-    return {FP_ZERO, FP_ONE, FP_ZERO, FP_ONE};
+    return {FP_MONT_ZERO, FP_MONT_ONE, FP_MONT_ZERO, FP_MONT_ONE};
 }
 
 // Adds two points in extended projective coordinates
@@ -147,7 +147,7 @@ __device__ __host__ inline PointAffine point_to_affine(const PointExtended& P) {
 // convert from affine coordinates to extended projective coordinates
 __device__ __host__ inline PointExtended point_from_affine(const PointAffine& P) {
     Fp T = fp_mul(P.x, P.y);
-    return {P.x, P.y, T, FP_ONE};
+    return {P.x, P.y, T, FP_MONT_ONE};
 }
 
 // check if point is the identity point

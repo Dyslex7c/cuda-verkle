@@ -69,7 +69,6 @@ __device__ __host__ inline int fr_cmp(const uint32_t a[8], const uint32_t b[8]) 
 __device__ __host__ inline Fr fr_add(const Fr& a, const Fr& b) {
     Fr res;
 #ifdef __CUDA_ARCH__
-    uint32_t carry = 0;
     asm("add.cc.u32 %0, %1, %2;" : "=r"(res.limbs[0]) : "r"(a.limbs[0]), "r"(b.limbs[0]));
     asm("addc.cc.u32 %0, %1, %2;" : "=r"(res.limbs[1]) : "r"(a.limbs[1]), "r"(b.limbs[1]));
     asm("addc.cc.u32 %0, %1, %2;" : "=r"(res.limbs[2]) : "r"(a.limbs[2]), "r"(b.limbs[2]));

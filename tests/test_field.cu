@@ -28,28 +28,28 @@ static void print_fp_raw(const char* label, const Fp& a) {
 
 void test_fp_zero_one() {
     // 0 + 0 = 0
-    Fp z = fp_add(FP_ZERO, FP_ZERO);
-    ASSERT_FP_EQ(z, FP_ZERO, "0 + 0 = 0");
+    Fp z = fp_add(FP_MONT_ZERO, FP_MONT_ZERO);
+    ASSERT_FP_EQ(z, FP_MONT_ZERO, "0 + 0 = 0");
 
     // 1 * 1 = 1
-    Fp one_sq = fp_mul(FP_ONE, FP_ONE);
-    ASSERT_FP_EQ(one_sq, FP_ONE, "1 * 1 = 1");
+    Fp one_sq = fp_mul(FP_MONT_ONE, FP_MONT_ONE);
+    ASSERT_FP_EQ(one_sq, FP_MONT_ONE, "1 * 1 = 1");
 
     // 0 * 1 = 0
-    Fp z_mul = fp_mul(FP_ZERO, FP_ONE);
-    ASSERT_FP_EQ(z_mul, FP_ZERO, "0 * 1 = 0");
+    Fp z_mul = fp_mul(FP_MONT_ZERO, FP_MONT_ONE);
+    ASSERT_FP_EQ(z_mul, FP_MONT_ZERO, "0 * 1 = 0");
 
     // 1 + 0 = 1
-    Fp one_add = fp_add(FP_ONE, FP_ZERO);
-    ASSERT_FP_EQ(one_add, FP_ONE, "1 + 0 = 1");
+    Fp one_add = fp_add(FP_MONT_ONE, FP_MONT_ZERO);
+    ASSERT_FP_EQ(one_add, FP_MONT_ONE, "1 + 0 = 1");
 
     // 1 - 1 = 0
-    Fp one_sub = fp_sub(FP_ONE, FP_ONE);
-    ASSERT_FP_EQ(one_sub, FP_ZERO, "1 - 1 = 0");
+    Fp one_sub = fp_sub(FP_MONT_ONE, FP_MONT_ONE);
+    ASSERT_FP_EQ(one_sub, FP_MONT_ZERO, "1 - 1 = 0");
 
     // -0 = 0
-    Fp neg_z = fp_neg(FP_ZERO);
-    ASSERT_FP_EQ(neg_z, FP_ZERO, "-0 = 0");
+    Fp neg_z = fp_neg(FP_MONT_ZERO);
+    ASSERT_FP_EQ(neg_z, FP_MONT_ZERO, "-0 = 0");
 }
 
 void test_fp_add_sub() {
@@ -68,7 +68,7 @@ void test_fp_add_sub() {
     // a + (-a) = 0
     Fp neg_a = fp_neg(a);
     Fp zero = fp_add(a, neg_a);
-    ASSERT_FP_EQ(zero, FP_ZERO, "a + (-a) = 0");
+    ASSERT_FP_EQ(zero, FP_MONT_ZERO, "a + (-a) = 0");
 
     // Commutativity: a + b = b + a
     Fp sum2 = fp_add(b, a);
@@ -119,20 +119,20 @@ void test_fp_sqr() {
 
 void test_fp_inv() {
     // inv(1) = 1
-    Fp inv_one = fp_inv(FP_ONE);
-    ASSERT_FP_EQ(inv_one, FP_ONE, "inv(1) = 1");
+    Fp inv_one = fp_inv(FP_MONT_ONE);
+    ASSERT_FP_EQ(inv_one, FP_MONT_ONE, "inv(1) = 1");
 
     // a * inv(a) = 1
     Fp a = fp_from_u64(42);
     Fp inv_a = fp_inv(a);
     Fp prod = fp_mul(a, inv_a);
-    ASSERT_FP_EQ(prod, FP_ONE, "42 * inv(42) = 1");
+    ASSERT_FP_EQ(prod, FP_MONT_ONE, "42 * inv(42) = 1");
 
     // Larger value
     Fp b = fp_from_u64(123456789);
     Fp inv_b = fp_inv(b);
     Fp prod2 = fp_mul(b, inv_b);
-    ASSERT_FP_EQ(prod2, FP_ONE, "123456789 * inv(123456789) = 1");
+    ASSERT_FP_EQ(prod2, FP_MONT_ONE, "123456789 * inv(123456789) = 1");
 }
 
 void test_fp_from_raw_roundtrip() {
@@ -168,12 +168,12 @@ void test_fp_modular_reduction() {
         0x09a1d805, 0x3339d808, 0x299d7d48, 0x73eda753
     };
     Fp pm1 = fp_from_raw(p_minus_1);
-    Fp result = fp_add(pm1, FP_ONE);
-    ASSERT_FP_EQ(result, FP_ZERO, "(p-1) + 1 = 0 mod p");
+    Fp result = fp_add(pm1, FP_MONT_ONE);
+    ASSERT_FP_EQ(result, FP_MONT_ZERO, "(p-1) + 1 = 0 mod p");
 
     // p-1 should be -1, so (p-1)^2 = 1
     Fp neg_one_sq = fp_sqr(pm1);
-    ASSERT_FP_EQ(neg_one_sq, FP_ONE, "(-1)^2 = 1");
+    ASSERT_FP_EQ(neg_one_sq, FP_MONT_ONE, "(-1)^2 = 1");
 }
 
 void test_fr_basic() {
@@ -235,7 +235,7 @@ void test_fp_rust_reference_vectors() {
         const std::string& op = test_case.at("op").as_string();
         const Fp a = fp_from_vector_hex(test_case.at("a").as_string());
         const Fp expected = fp_from_vector_hex(test_case.at("result").as_string());
-        Fp actual = FP_ZERO;
+        Fp actual = FP_MONT_ZERO;
         if (op == "add") actual = fp_add(a, fp_from_vector_hex(test_case.at("b").as_string()));
         else if (op == "sub") actual = fp_sub(a, fp_from_vector_hex(test_case.at("b").as_string()));
         else if (op == "mul") actual = fp_mul(a, fp_from_vector_hex(test_case.at("b").as_string()));

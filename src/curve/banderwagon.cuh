@@ -91,7 +91,7 @@ __device__ __host__ inline bool bw_subgroup_check(const BanderwagonElement& e) {
 
     Fp a_x_sqr = fp_mul(COEFF_A, x_sqr);
 
-    Fp one = FP_ONE;
+    Fp one = FP_MONT_ONE;
     Fp val = fp_sub(one, a_x_sqr);
 
     // check quadratic residue: val^((p-1)/2) == 1
@@ -112,7 +112,7 @@ __device__ __host__ inline bool bw_is_on_curve(const BanderwagonElement& e) {
     const Fp x_squared = fp_sqr(affine.x);
     const Fp y_squared = fp_sqr(affine.y);
     const Fp lhs = fp_add(fp_mul(COEFF_A, x_squared), y_squared);
-    const Fp rhs = fp_add(FP_ONE, fp_mul(COEFF_D, fp_mul(x_squared, y_squared)));
+    const Fp rhs = fp_add(FP_MONT_ONE, fp_mul(COEFF_D, fp_mul(x_squared, y_squared)));
     return fp_eq(lhs, rhs);
 }
 
@@ -121,8 +121,8 @@ __device__ __host__ inline bool bw_is_on_curve(const BanderwagonElement& e) {
 // also perform bw_subgroup_check(), as bw_from_bytes_strict() does below.
 __device__ __host__ inline bool bw_recover_y_from_x(const Fp& x, Fp& y) {
     const Fp x_squared = fp_sqr(x);
-    const Fp numerator = fp_sub(fp_mul(COEFF_A, x_squared), FP_ONE);
-    const Fp denominator = fp_sub(fp_mul(COEFF_D, x_squared), FP_ONE);
+    const Fp numerator = fp_sub(fp_mul(COEFF_A, x_squared), FP_MONT_ONE);
+    const Fp denominator = fp_sub(fp_mul(COEFF_D, x_squared), FP_MONT_ONE);
     if (fp_is_zero(denominator)) return false;
 
     Fp recovered;
@@ -142,7 +142,7 @@ __device__ __host__ inline bool bw_from_bytes_strict(const uint8_t in[32], Bande
 
     Fp y;
     if (!bw_recover_y_from_x(x, y)) return false;
-    const BanderwagonElement candidate = {{x, y, fp_mul(x, y), FP_ONE}};
+    const BanderwagonElement candidate = {{x, y, fp_mul(x, y), FP_MONT_ONE}};
     if (!bw_is_on_curve(candidate) || !bw_subgroup_check(candidate)) return false;
 
     out = candidate;
