@@ -22,7 +22,8 @@ COPY . .
 # Generate test vectors
 RUN cd rust-reference && cargo build --release
 
-# Build CUDA project
-RUN mkdir -p build && cd build && cmake .. -DCMAKE_CUDA_ARCHITECTURES=75 && make -j$(nproc)
+# Build CUDA project and run all tests that do not require a visible GPU. The
+# CUDA integration test is configured to skip cleanly when no GPU is attached.
+RUN mkdir -p build && cd build && cmake .. -DCMAKE_CUDA_ARCHITECTURES=75 && make -j$(nproc) && ctest --output-on-failure
 
 CMD ["bash"]

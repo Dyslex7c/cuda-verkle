@@ -48,7 +48,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Compile CUDA targets in the pinned CUDA image
+      - name: Build CUDA targets and run non-hardware tests in the pinned image
         run: docker build --tag cuda-verkle-ci .
 
   dependency-review:

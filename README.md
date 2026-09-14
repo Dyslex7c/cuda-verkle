@@ -78,19 +78,40 @@ ctest --output-on-failure
 #### Running on Google Colab (Free GPU):
 1. Open a new notebook on [Google Colab](https://colab.research.google.com).
 2. Set runtime to **GPU** (`Runtime` → `Change runtime type` → `T4 GPU`).
-3. Clone and build:
+3. Clone and run the complete validation script:
    ```bash
    !git clone https://github.com/<your-username>/cuda-verkle.git
    %cd cuda-verkle
-   !mkdir -p build && cd build && cmake .. -DCMAKE_CUDA_ARCHITECTURES=75 && make -j$(nproc)
-   !cd build && ctest --output-on-failure
+   !chmod +x scripts/run_gpu_validation.sh
+   !CUDA_ARCH=75 ./scripts/run_gpu_validation.sh
    ```
+
+   The script checks the GPU/toolkit, performs a Release CMake build, runs
+   every test (including `test_msm_gpu`), then runs the GPU benchmark. Change
+   `CUDA_ARCH` if the GPU is not a T4: `80` for A100, `86` for RTX 30-series,
+   or `89` for RTX 40-series. Save the full output together with
+   `git rev-parse HEAD`; it is the hardware-validation record for that commit.
 
 #### With Docker (GPU Passthrough):
 ```bash
 docker compose build
 docker compose run --rm cuda-verkle bash -c "cd build && ctest --output-on-failure"
 ```
+
+## GPU validation record
+
+Before relying on a CUDA result, run the Colab validation script from a clean
+checkout and retain its complete output. A successful run must show:
+
+- all host suites passing;
+- `TestMSMGPU` passing rather than being skipped;
+- the benchmark reporting `First result matches CPU: yes`; and
+- the GPU name, driver version, CUDA version, and commit recorded by the
+  script.
+
+Hardware validation demonstrates correctness only for the tested GPU, driver,
+and CUDA combination. It does not replace the independent cryptographic audit
+required by [`SECURITY.md`](SECURITY.md).
 
 ---
 
