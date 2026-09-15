@@ -1,6 +1,12 @@
 #pragma once
 #include <cstdint>
 
+// The previous inline-PTX Montgomery multiplication sequence failed the
+// hardware GPU-vs-CPU differential test: its carry propagation was not
+// equivalent to the portable implementation below.  Keep one arithmetic
+// implementation for host and device until a replacement PTX sequence is
+// independently validated on real hardware.
+
 // when compiling with a non-CUDA compiler (e.g. g++, clang++), __device__ and __host__ are not defined. 
 // We define them as empty macros so the same code compiles for host-only testing.
 #ifndef __CUDACC__
@@ -99,43 +105,23 @@ __device__ __host__ inline int fp_cmp_modulus(const uint32_t a[8]) {
 
 __device__ __host__ inline Fp fp_add(const Fp& a, const Fp& b) {
     Fp res;
-#ifdef __CUDA_ARCH__
-    asm("add.cc.u32 %0, %1, %2;" : "=r"(res.limbs[0]) : "r"(a.limbs[0]), "r"(b.limbs[0]));
-    asm("addc.cc.u32 %0, %1, %2;" : "=r"(res.limbs[1]) : "r"(a.limbs[1]), "r"(b.limbs[1]));
-    asm("addc.cc.u32 %0, %1, %2;" : "=r"(res.limbs[2]) : "r"(a.limbs[2]), "r"(b.limbs[2]));
-    asm("addc.cc.u32 %0, %1, %2;" : "=r"(res.limbs[3]) : "r"(a.limbs[3]), "r"(b.limbs[3]));
-    asm("addc.cc.u32 %0, %1, %2;" : "=r"(res.limbs[4]) : "r"(a.limbs[4]), "r"(b.limbs[4]));
-    asm("addc.cc.u32 %0, %1, %2;" : "=r"(res.limbs[5]) : "r"(a.limbs[5]), "r"(b.limbs[5]));
-    asm("addc.cc.u32 %0, %1, %2;" : "=r"(res.limbs[6]) : "r"(a.limbs[6]), "r"(b.limbs[6]));
-    asm("addc.cc.u32 %0, %1, %2;" : "=r"(res.limbs[7]) : "r"(a.limbs[7]), "r"(b.limbs[7]));
-#else
     uint64_t carry = 0;
     for (int i = 0; i < 8; ++i) {
         uint64_t sum = (uint64_t)a.limbs[i] + b.limbs[i] + carry;
         res.limbs[i] = (uint32_t)sum;
         carry = sum >> 32;
     }
-#endif
+
 
     if (fp_cmp_modulus(res.limbs) >= 0) {
         Fp sub_res;
-#ifdef __CUDA_ARCH__
-        asm("sub.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[0]) : "r"(res.limbs[0]), "n"(fp_modulus_limb(0)));
-        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[1]) : "r"(res.limbs[1]), "n"(fp_modulus_limb(1)));
-        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[2]) : "r"(res.limbs[2]), "n"(fp_modulus_limb(2)));
-        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[3]) : "r"(res.limbs[3]), "n"(fp_modulus_limb(3)));
-        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[4]) : "r"(res.limbs[4]), "n"(fp_modulus_limb(4)));
-        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[5]) : "r"(res.limbs[5]), "n"(fp_modulus_limb(5)));
-        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[6]) : "r"(res.limbs[6]), "n"(fp_modulus_limb(6)));
-        asm("subc.u32 %0, %1, %2;"    : "=r"(sub_res.limbs[7]) : "r"(res.limbs[7]), "n"(fp_modulus_limb(7)));
-#else
         uint64_t borrow = 0;
         for (int i = 0; i < 8; ++i) {
             uint64_t diff = (uint64_t)res.limbs[i] - fp_modulus_limb(i) - borrow;
             sub_res.limbs[i] = (uint32_t)diff;
             borrow = (diff >> 63) & 1;
         }
-#endif
+
         return sub_res;
     }
     return res;
@@ -143,49 +129,24 @@ __device__ __host__ inline Fp fp_add(const Fp& a, const Fp& b) {
 
 __device__ __host__ inline Fp fp_sub(const Fp& a, const Fp& b) {
     Fp res;
-#ifdef __CUDA_ARCH__
-    asm("sub.cc.u32 %0, %1, %2;" : "=r"(res.limbs[0]) : "r"(a.limbs[0]), "r"(b.limbs[0]));
-    asm("subc.cc.u32 %0, %1, %2;" : "=r"(res.limbs[1]) : "r"(a.limbs[1]), "r"(b.limbs[1]));
-    asm("subc.cc.u32 %0, %1, %2;" : "=r"(res.limbs[2]) : "r"(a.limbs[2]), "r"(b.limbs[2]));
-    asm("subc.cc.u32 %0, %1, %2;" : "=r"(res.limbs[3]) : "r"(a.limbs[3]), "r"(b.limbs[3]));
-    asm("subc.cc.u32 %0, %1, %2;" : "=r"(res.limbs[4]) : "r"(a.limbs[4]), "r"(b.limbs[4]));
-    asm("subc.cc.u32 %0, %1, %2;" : "=r"(res.limbs[5]) : "r"(a.limbs[5]), "r"(b.limbs[5]));
-    asm("subc.cc.u32 %0, %1, %2;" : "=r"(res.limbs[6]) : "r"(a.limbs[6]), "r"(b.limbs[6]));
-    uint32_t borrow;
-    asm("subc.cc.u32 %0, %1, %2;" : "=r"(res.limbs[7]) : "r"(a.limbs[7]), "r"(b.limbs[7]));
-    asm("subc.u32 %0, 0, 0;" : "=r"(borrow)); // capture carry flag
-#else
     uint64_t borrow = 0;
     for (int i = 0; i < 8; ++i) {
         uint64_t diff = (uint64_t)a.limbs[i] - b.limbs[i] - borrow;
         res.limbs[i] = (uint32_t)diff;
         borrow = (diff >> 63) & 1;
     }
-#endif
 
-#ifdef __CUDA_ARCH__
+
     if (borrow) {
-#else
-    if (borrow) {
-#endif
+
         Fp add_res;
-#ifdef __CUDA_ARCH__
-        asm("add.cc.u32 %0, %1, %2;" : "=r"(add_res.limbs[0]) : "r"(res.limbs[0]), "n"(fp_modulus_limb(0)));
-        asm("addc.cc.u32 %0, %1, %2;" : "=r"(add_res.limbs[1]) : "r"(res.limbs[1]), "n"(fp_modulus_limb(1)));
-        asm("addc.cc.u32 %0, %1, %2;" : "=r"(add_res.limbs[2]) : "r"(res.limbs[2]), "n"(fp_modulus_limb(2)));
-        asm("addc.cc.u32 %0, %1, %2;" : "=r"(add_res.limbs[3]) : "r"(res.limbs[3]), "n"(fp_modulus_limb(3)));
-        asm("addc.cc.u32 %0, %1, %2;" : "=r"(add_res.limbs[4]) : "r"(res.limbs[4]), "n"(fp_modulus_limb(4)));
-        asm("addc.cc.u32 %0, %1, %2;" : "=r"(add_res.limbs[5]) : "r"(res.limbs[5]), "n"(fp_modulus_limb(5)));
-        asm("addc.cc.u32 %0, %1, %2;" : "=r"(add_res.limbs[6]) : "r"(res.limbs[6]), "n"(fp_modulus_limb(6)));
-        asm("addc.u32 %0, %1, %2;" : "=r"(add_res.limbs[7]) : "r"(res.limbs[7]), "n"(fp_modulus_limb(7)));
-#else
         uint64_t carry = 0;
         for (int i = 0; i < 8; ++i) {
             uint64_t sum = (uint64_t)res.limbs[i] + fp_modulus_limb(i) + carry;
             add_res.limbs[i] = (uint32_t)sum;
             carry = sum >> 32;
         }
-#endif
+
         return add_res;
     }
     return res;
@@ -233,23 +194,13 @@ __device__ __host__ inline Fp fp_mul(const Fp& a, const Fp& b) {
     
     if (fp_cmp_modulus(res.limbs) >= 0) {
         Fp sub_res;
-#ifdef __CUDA_ARCH__
-        asm("sub.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[0]) : "r"(res.limbs[0]), "n"(fp_modulus_limb(0)));
-        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[1]) : "r"(res.limbs[1]), "n"(fp_modulus_limb(1)));
-        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[2]) : "r"(res.limbs[2]), "n"(fp_modulus_limb(2)));
-        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[3]) : "r"(res.limbs[3]), "n"(fp_modulus_limb(3)));
-        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[4]) : "r"(res.limbs[4]), "n"(fp_modulus_limb(4)));
-        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[5]) : "r"(res.limbs[5]), "n"(fp_modulus_limb(5)));
-        asm("subc.cc.u32 %0, %1, %2;" : "=r"(sub_res.limbs[6]) : "r"(res.limbs[6]), "n"(fp_modulus_limb(6)));
-        asm("subc.u32 %0, %1, %2;"    : "=r"(sub_res.limbs[7]) : "r"(res.limbs[7]), "n"(fp_modulus_limb(7)));
-#else
         uint64_t borrow = 0;
         for (int i = 0; i < 8; ++i) {
             uint64_t diff = (uint64_t)res.limbs[i] - fp_modulus_limb(i) - borrow;
             sub_res.limbs[i] = (uint32_t)diff;
             borrow = (diff >> 63) & 1;
         }
-#endif
+
         return sub_res;
     }
 

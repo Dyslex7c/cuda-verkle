@@ -20,18 +20,6 @@ static int tests_failed = 0;
     else { tests_failed++; printf("  FAIL: %s\n", msg); } \
 } while(0)
 
-static void print_point_affine(const char* label, const PointExtended& p) {
-    PointAffine af = point_to_affine(p);
-    uint32_t xr[8], yr[8];
-    fp_to_raw(af.x, xr);
-    fp_to_raw(af.y, yr);
-    printf("  %s:\n    x = 0x", label);
-    for (int i = 7; i >= 0; --i) printf("%08x", xr[i]);
-    printf("\n    y = 0x");
-    for (int i = 7; i >= 0; --i) printf("%08x", yr[i]);
-    printf("\n");
-}
-
 static void limbs_to_big_endian(const uint32_t limbs[8], uint8_t out[32]) {
     for (int i = 0; i < 8; ++i) {
         const uint32_t limb = limbs[7 - i];

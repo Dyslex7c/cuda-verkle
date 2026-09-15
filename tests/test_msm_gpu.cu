@@ -19,6 +19,41 @@ int failed = 0;
     else { ++failed; std::printf("  FAIL: %s\n", message); } \
 } while (0)
 
+// Keep a direct device-arithmetic check ahead of the MSM tests.  A broken
+// field fast path can otherwise make every Pippenger case fail with little
+// indication of whether the defect is arithmetic or bucket construction.
+__global__ void device_field_sanity_kernel(Fr scalar, Fr* scalar_out, Fp* product_out) {
+    if (threadIdx.x != 0 || blockIdx.x != 0) return;
+    *scalar_out = fr_mul(scalar, fr_one());
+    *product_out = fp_mul(fp_from_u64(7), fp_from_u64(13));
+}
+
+void test_gpu_field_arithmetic() {
+    Fr* device_scalar = nullptr;
+    Fp* device_product = nullptr;
+    Fr scalar_out{};
+    Fp product_out{};
+    const Fr scalar_in = fr_from_u64(0x123456789abcdef0ULL);
+
+    const bool allocated =
+        cudaMalloc(reinterpret_cast<void**>(&device_scalar), sizeof(*device_scalar)) == cudaSuccess &&
+        cudaMalloc(reinterpret_cast<void**>(&device_product), sizeof(*device_product)) == cudaSuccess;
+    if (allocated) {
+        device_field_sanity_kernel<<<1, 1>>>(scalar_in, device_scalar, device_product);
+    }
+    const bool completed = allocated && cudaGetLastError() == cudaSuccess &&
+        cudaMemcpy(&scalar_out, device_scalar, sizeof(scalar_out), cudaMemcpyDeviceToHost) == cudaSuccess &&
+        cudaMemcpy(&product_out, device_product, sizeof(product_out), cudaMemcpyDeviceToHost) == cudaSuccess;
+
+    ASSERT_TRUE(completed && fr_eq(scalar_out, scalar_in),
+                "GPU Fr Montgomery multiplication matches the host result");
+    ASSERT_TRUE(completed && fp_eq(product_out, fp_from_u64(91)),
+                "GPU Fp Montgomery multiplication matches the host result");
+
+    if (device_scalar != nullptr) (void)cudaFree(device_scalar);
+    if (device_product != nullptr) (void)cudaFree(device_product);
+}
+
 bool gpu_matches_cpu(
     MsmGpuContext& context,
     const Fr scalars[MSM_SIZE],
@@ -170,6 +205,7 @@ int main() {
         return 1;
     }
 
+    test_gpu_field_arithmetic();
     test_gpu_msm(context, crs_points);
     test_gpu_batch_msm(context, crs_points);
     test_gpu_streamed_msm(context, crs_points);
