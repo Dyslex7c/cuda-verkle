@@ -11,7 +11,7 @@ verkle-spec = { git = "https://github.com/crate-crypto/rust-verkle", branch = "m
 
 ark-ed-on-bls12-381-bandersnatch = "0.4"
 ark-ff = "0.4"
-ark-ec = "0.4"
+ark-ec = "0.6"
 ark-serialize = "0.4"
 
 serde = { version = "1", features = ["derive"] }
