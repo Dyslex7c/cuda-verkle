@@ -10,7 +10,7 @@ verkle-trie = { git = "https://github.com/crate-crypto/rust-verkle", branch = "m
 verkle-spec = { git = "https://github.com/crate-crypto/rust-verkle", branch = "master" }
 
 ark-ed-on-bls12-381-bandersnatch = "0.4"
-ark-ff = "0.4"
+ark-ff = "0.6"
 ark-ec = "0.4"
 ark-serialize = "0.4"
 
